@@ -72,6 +72,9 @@
 #include "llvm/Transforms/Instrumentation/InstrOrderFile.h"
 #include "llvm/Transforms/Instrumentation/InstrProfiling.h"
 #include "llvm/Transforms/Instrumentation/MemProfiler.h"
+#include "llvm/Transforms/Instrumentation/ObelixCallGraphTraversal.h"
+#include "llvm/Transforms/Instrumentation/ObelixRewriteCalls.h"
+#include "llvm/Transforms/Instrumentation/ObelixGeneratePattern.h"
 #include "llvm/Transforms/Instrumentation/PGOInstrumentation.h"
 #include "llvm/Transforms/Scalar/ADCE.h"
 #include "llvm/Transforms/Scalar/AlignmentFromAssumptions.h"
@@ -154,6 +157,9 @@ static cl::opt<bool>
     EnablePGOInlineDeferral("enable-npm-pgo-inline-deferral", cl::init(true),
                             cl::Hidden,
                             cl::desc("Enable inline deferral during PGO"));
+
+static cl::opt<bool> EnableObelix("enable-obelix", cl::init(false), cl::Hidden,
+                                  cl::desc("Enable Obelix sanitizer LTO pass"));
 
 static cl::opt<bool> EnableMemProfiler("enable-mem-prof", cl::Hidden,
                                        cl::desc("Enable memory profiler"));
@@ -1897,6 +1903,12 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
     MPM.addPass(CGProfilePass());
 
   invokeFullLinkTimeOptimizationLastEPCallbacks(MPM, Level);
+
+  if (EnableObelix) {
+    MPM.addPass(ObelixCallGraphTraversalPass());
+    MPM.addPass(createModuleToFunctionPassAdaptor(ObelixRewriteCallsPass()));
+    MPM.addPass(createModuleToFunctionPassAdaptor(ObelixGeneratePatternPass()));
+  }
 
   // Emit annotation remarks.
   addAnnotationRemarksPass(MPM);

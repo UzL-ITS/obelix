@@ -6988,3 +6988,14 @@ This attribute may be attached to a function pointer type, where it modifies
 its underlying representation to be a WebAssembly ``funcref``.
   }];
 }
+
+def ObelixDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{Obfuscuro reloaded.
+
+  Syntax:
+  * ``[[clang::obelix]] void ...`` for normal functions
+  * ``[[clang::obelix(extern)]] void ... ;`` for declarations of functions in
+    other compile units/libraries.
+  }];
+}

@@ -207,6 +207,11 @@ private:
   friend class MachineFunction;
 
 public:
+
+  /// Indicates whether this basic block is accessed and executed via the
+  /// Obelix ORAM controller.
+  bool IsObelixOramBlock = false;
+
   /// Return the LLVM basic block that this instance corresponded to originally.
   /// Note that this may be NULL if this instance does not correspond directly
   /// to an LLVM basic block.

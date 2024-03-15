@@ -4168,3 +4168,14 @@ def ReadOnlyPlacement : InheritableAttr {
   let Subjects = SubjectList<[Record]>;
   let Documentation = [ReadOnlyPlacementDocs];
 }
+
+def Obelix : InheritableAttr {
+  let Spellings = [Clang<"obelix">];
+  let Args = [EnumArgument<"State", "State",
+    ["", "original", "copy", "extern", "autocopy"],
+    ["Marked", "Original", "Copy", "Extern", "AutoCopy"],
+    1
+  >];
+  let Subjects = SubjectList<[Function]>;
+  let Documentation = [ObelixDocs];
+}

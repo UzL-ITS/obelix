@@ -32,6 +32,26 @@ class LLVM_LIBRARY_VISIBILITY X86AsmPrinter : public AsmPrinter {
   bool ShouldEmitWeakSwiftAsyncExtendedFramePointerFlags = false;
   bool IndCSPrefix = false;
 
+  /// Tracks whether the current function should be ORAM instrumented.
+  bool IsObelixCopy = false;
+
+  /// Utility for tracking basic block size and adding padding.
+  class ObelixBasicBlockPadder {
+  private:
+    const MachineFunction *MF = nullptr;
+
+  public:
+    void startFunction(MachineFunction &MF) {
+      this->MF = &MF;
+    }
+
+    /// Emits padding to bring the basic block to a desired size.
+    void emitPadding(MCStreamer &OutStreamer);
+  };
+
+  ObelixBasicBlockPadder ObelixBBPadder;
+
+
   // This utility class tracks the length of a stackmap instruction's 'shadow'.
   // It is used by the X86AsmPrinter to ensure that the stackmap shadow
   // invariants (i.e. no other stackmaps, patchpoints, or control flow within
@@ -135,6 +155,8 @@ public:
   void emitEndOfAsmFile(Module &M) override;
 
   void emitInstruction(const MachineInstr *MI) override;
+
+  void emitBasicBlockStart(const MachineBasicBlock &MBB) override;
 
   void emitBasicBlockEnd(const MachineBasicBlock &MBB) override;
 

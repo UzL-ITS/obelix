@@ -967,7 +967,20 @@ namespace X86II {
 
     // Force VEX encoding
     ExplicitVEXShift = NoTrackShift + 1,
-    ExplicitVEXPrefix = 1ULL << ExplicitVEXShift
+    ExplicitVEXPrefix = 1ULL << ExplicitVEXShift,
+
+    // Obelix instruction class
+    ObelixInstructionClassShift = ExplicitVEXShift + 1,
+    ObelixInstructionClassMask = 7ULL << ObelixInstructionClassShift,
+
+    ObelixIClassNone      = 0ULL << ObelixInstructionClassShift,
+    ObelixIClassLoad      = 1ULL << ObelixInstructionClassShift,
+    ObelixIClassStore     = 2ULL << ObelixInstructionClassShift,
+    ObelixIClassPtrAdjust = 3ULL << ObelixInstructionClassShift,
+    ObelixIClass1         = 4ULL << ObelixInstructionClassShift,
+    ObelixIClass2         = 5ULL << ObelixInstructionClassShift,
+    ObelixIClass3         = 6ULL << ObelixInstructionClassShift,
+    ObelixIClass4         = 7ULL << ObelixInstructionClassShift,
   };
 
   /// \returns true if the instruction with given opcode is a prefix.

@@ -191,5 +191,7 @@ SANITIZER("scudo", Scudo)
 // can be used to disable all the sanitizers.
 SANITIZER_GROUP("all", All, ~SanitizerMask())
 
+SANITIZER("obelix", Obelix)
+
 #undef SANITIZER
 #undef SANITIZER_GROUP

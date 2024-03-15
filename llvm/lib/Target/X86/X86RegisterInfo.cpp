@@ -33,6 +33,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/ObelixProperties.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 
@@ -613,6 +614,32 @@ BitVector X86RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   assert(checkAllSuperRegsMarked(Reserved,
                                  {X86::SIL, X86::DIL, X86::BPL, X86::SPL,
                                   X86::SIH, X86::DIH, X86::BPH, X86::SPH}));
+
+  // Disable ORAM communication registers in Obelix-protected functions
+  // to reduce unnecessary overhead through saving/restoring registers
+  const Function &F = MF.getFunction();
+  if(F.hasFnAttribute(Attribute::AttrKind::Obelix)) {
+
+    const Attribute &FOAttr = F.getFnAttribute(Attribute::AttrKind::Obelix);
+
+    if (FOAttr.getObelixProperties().getState() == ObelixProperties::Copy
+        || FOAttr.getObelixProperties().getState() == ObelixProperties::AutoCopy) {
+
+      for (MCRegAliasIterator AI(X86::R13, this, true); AI.isValid(); ++AI)
+        Reserved.set(*AI);
+      for (MCRegAliasIterator AI(X86::R14, this, true); AI.isValid(); ++AI)
+        Reserved.set(*AI);
+      for (MCRegAliasIterator AI(X86::R15, this, true); AI.isValid(); ++AI)
+        Reserved.set(*AI);
+
+      // XMM0...XMM15
+      for (unsigned n = 0; n != 16; ++n) {
+        for (MCRegAliasIterator AI(X86::XMM0 + n, this, true); AI.isValid(); ++AI)
+          Reserved.set(*AI);
+      }
+    }
+  }
+
   return Reserved;
 }
 

@@ -63,6 +63,7 @@
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ModRef.h"
+#include "llvm/Transforms/Instrumentation/ObelixGeneratePattern.h"
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -328,6 +329,22 @@ unsigned Function::getInstructionCount() const {
   return NumInstrs;
 }
 
+std::string Function::getObelixOramFunctionInfoSymbolName() const {
+  const DataLayout &DL = Parent->getDataLayout();
+
+  StringRef Prefix = DL.getPrivateGlobalPrefix();
+
+  return (Prefix + "ORAMFI__" + getName()).str();
+}
+
+std::string Function::getObelixOramCodeBlockTableSymbolName() const {
+  const DataLayout &DL = Parent->getDataLayout();
+
+  StringRef Prefix = DL.getPrivateGlobalPrefix();
+
+  return (Prefix + "ORAMCBT__" + getName()).str();
+}
+
 Function *Function::Create(FunctionType *Ty, LinkageTypes Linkage,
                            const Twine &N, Module &M) {
   return Create(Ty, Linkage, M.getDataLayout().getProgramAddressSpace(), N, &M);
@@ -431,6 +448,8 @@ Function::~Function() {
   // Delete all of the method arguments and unlink from symbol table...
   if (Arguments)
     clearArguments();
+
+  delete CodeBlockPattern;
 
   // Remove the function from the on-the-side GC table.
   clearGC();

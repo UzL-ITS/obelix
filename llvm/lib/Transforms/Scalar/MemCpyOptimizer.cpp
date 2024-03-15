@@ -630,6 +630,9 @@ bool MemCpyOptPass::processStoreOfLoad(StoreInst *SI, LoadInst *LI,
       LI->getParent() != SI->getParent())
     return false;
 
+  if(SI->getParent()->getParent()->hasFnAttribute(Attribute::AttrKind::Obelix))
+    return false;
+
   auto *T = LI->getType();
   // Don't introduce calls to memcpy/memmove intrinsics out of thin air if
   // the corresponding libcalls are not available.

@@ -30,6 +30,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/KnownBits.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Support/ObelixProperties.h"
 #include <cstdint>
 
 using namespace llvm;
@@ -569,6 +570,8 @@ namespace {
 
     bool tryOptimizeRem8Extend(SDNode *N);
 
+    bool tryHandleObelixCases(MachineSDNode *N);
+
     bool onlyUsesZeroFlag(SDValue Flags) const;
     bool hasNoSignFlagUses(SDValue Flags) const;
     bool hasNoCarryFlagUses(SDValue Flags) const;
@@ -622,7 +625,8 @@ bool X86DAGToDAGISel::isMaskZeroExtended(SDNode *N) const {
 
 bool
 X86DAGToDAGISel::IsProfitableToFold(SDValue N, SDNode *U, SDNode *Root) const {
-  if (OptLevel == CodeGenOpt::None) return false;
+  if (OptLevel == CodeGenOpt::None)
+    return false;
 
   if (!N.hasOneUse())
     return false;
@@ -1477,6 +1481,416 @@ bool X86DAGToDAGISel::tryOptimizeRem8Extend(SDNode *N) {
   return true;
 }
 
+bool X86DAGToDAGISel::tryHandleObelixCases(MachineSDNode *N) {
+
+  // TODO TII->unfoldMemoryOperand saves a lot of code
+
+  SDLoc dl(N);
+
+  unsigned Opc = N->getMachineOpcode();
+  switch(Opc) {
+  case X86::MOV64ri: {
+    /*
+     *   mov reg64, hi.lo
+     * ->
+     *   mov reg32a, hi
+     *   shl reg64a, 32
+     *   mov reg32b, lo
+     *   or reg64a, reg64b
+     */
+
+    dbgs() << "[OBELIX] Replacing MOV64ri in ISel\n";
+
+    SDValue N0 = N->getOperand(0);
+
+    assert(N->getNumOperands() == 1 && "TODO MOV64ri in chain not yet supported");
+    assert(N->getVTList().NumVTs == 1 && "TODO MOV64ri out chain not yet supported");
+
+    // Get constant
+    auto *ImmN = dyn_cast<ConstantSDNode>(N0);
+    if (!ImmN) {
+      N->dump();
+      N0->dump();
+      llvm_unreachable("Unexpected operand node of MOV64ri");
+    }
+
+    // Partition constant
+    uint32_t ImmHi = static_cast<uint32_t>(ImmN->getZExtValue() >> 32);
+    uint32_t ImmLo = static_cast<uint32_t>(ImmN->getZExtValue());
+
+    // Load high part
+    SDValue ConstHi = CurDAG->getTargetConstant(ImmHi, dl, MVT::i32);
+    MachineSDNode *MovHi = CurDAG->getMachineNode(X86::MOV32ri, dl, MVT::i32, ConstHi);
+    MachineSDNode *MovHiToFullReg = CurDAG->getMachineNode(
+        X86::SUBREG_TO_REG, dl, MVT::i64,
+        CurDAG->getTargetConstant(0, dl, MVT::i64),
+        SDValue(MovHi, 0),
+        CurDAG->getTargetConstant(X86::sub_32bit, dl, MVT::i32));
+
+    // Shift left
+    MachineSDNode *Shl = CurDAG->getMachineNode(
+        X86::SHL64ri, dl, {MVT::i64, MVT::i32},
+        {
+            SDValue(MovHiToFullReg, 0),
+            CurDAG->getTargetConstant(32, dl, MVT::i8)
+        });
+
+    // Load low part
+    SDValue ConstLo = CurDAG->getTargetConstant(ImmLo, dl, MVT::i32);
+    MachineSDNode *MovLo = CurDAG->getMachineNode(X86::MOV32ri, dl, MVT::i32, ConstLo);
+    MachineSDNode *MovLoToFullReg = CurDAG->getMachineNode(
+        X86::SUBREG_TO_REG, dl, MVT::i64,
+        CurDAG->getTargetConstant(0, dl, MVT::i64),
+        SDValue(MovLo, 0),
+        CurDAG->getTargetConstant(X86::sub_32bit, dl, MVT::i32));
+
+    // Add low part
+    MachineSDNode *Or = CurDAG->getMachineNode(
+        X86::OR64rr, dl, {MVT::i64, MVT::i64},
+        {
+            SDValue(Shl, 0),
+            SDValue(MovLoToFullReg, 0)
+        });
+
+    // TODO chain nodes
+
+    ReplaceUses(SDValue(N, 0), SDValue(Or, 0));
+
+    return true;
+  }
+  case X86::AND8mr:
+  case X86::XOR8mr:
+  case X86::XOR64mr:
+  case X86::ADD32mr:
+  case X86::ADD32mi8:
+  case X86::ADD64mr:
+  case X86::ADD64mi8:
+  case X86::ROL64mCL: {
+    /*
+     *   op [mem], regA
+     * ->
+     *   mov regB, [mem]
+     *   op regB, regA
+     *   mov [mem], regB
+     */
+
+    dbgs() << "[OBELIX] Replacing " << TII->getName(Opc) << " in ISel\n";
+
+    // Extract operands
+    SDValue Base = N->getOperand(0);
+    SDValue Scale = N->getOperand(1);
+    SDValue Index = N->getOperand(2);
+    SDValue Disp = N->getOperand(3);
+    SDValue Segment = N->getOperand(4);
+    SDValue OpOperand2 = N->getOperand(5);
+
+    // Extract memory operands, if present
+    MachineMemOperand *MemOpLoad = nullptr;
+    MachineMemOperand *MemOpStore = nullptr;
+    if(N->memoperands().size() > 0) {
+      assert(N->memoperands().size() == 2 && "Unexpected number of memory operands");
+
+      MemOpStore = N->memoperands()[0];
+      assert(MemOpStore->isStore() && "First memory operand is not a store");
+
+      MemOpLoad = N->memoperands()[1];
+      assert(MemOpLoad->isLoad() && "Second memory operand is not a load");
+    }
+
+    // Determine new op
+    unsigned int NewLoad;
+    unsigned int NewOp;
+    unsigned int NewStore;
+    MVT NewVT;
+    switch(Opc) {
+    case X86::AND8mr: NewLoad = X86::MOV8rm; NewOp = X86::AND8rr; NewStore = X86::MOV8mr; NewVT = MVT::i8; break;
+    case X86::XOR8mr: NewLoad = X86::MOV8rm; NewOp = X86::XOR8rr; NewStore = X86::MOV8mr; NewVT = MVT::i8; break;
+    case X86::XOR64mr: NewLoad = X86::MOV64rm; NewOp = X86::XOR64rr; NewStore = X86::MOV64mr; NewVT = MVT::i64; break;
+    case X86::ADD32mr: NewLoad = X86::MOV32rm; NewOp = X86::ADD32rr; NewStore = X86::MOV32mr; NewVT = MVT::i32; break;
+    case X86::ADD32mi8: NewLoad = X86::MOV32rm; NewOp = X86::ADD32ri8; NewStore = X86::MOV32mr; NewVT = MVT::i32; break;
+    case X86::ADD64mr: NewLoad = X86::MOV64rm; NewOp = X86::ADD64rr; NewStore = X86::MOV64mr; NewVT = MVT::i64; break;
+    case X86::ADD64mi8: NewLoad = X86::MOV64rm; NewOp = X86::ADD64ri8; NewStore = X86::MOV64mr; NewVT = MVT::i64; break;
+    case X86::ROL64mCL: NewLoad = X86::MOV64rm; NewOp = X86::ROL64rCL; NewStore = X86::MOV64mr; NewVT = MVT::i64; break;
+    default: llvm_unreachable("Unexpected opcode");
+    }
+
+    SmallVector<SDValue,  8> LoadOps;
+    LoadOps.push_back(Base);
+    LoadOps.push_back(Scale);
+    LoadOps.push_back(Index);
+    LoadOps.push_back(Disp);
+    LoadOps.push_back(Segment);
+
+    // Append potential chain operands
+    for(size_t i = 6; i < N->getNumOperands(); ++i)
+      LoadOps.push_back(N->getOperand(i));
+
+    // Load
+    MachineSDNode *Load = CurDAG->getMachineNode(
+        NewLoad, dl, NewVT, LoadOps);
+    if(MemOpLoad)
+      CurDAG->setNodeMemRefs(Load, { MemOpLoad });
+
+    // Op
+    MachineSDNode *Op = CurDAG->getMachineNode(
+        NewOp, dl, { NewVT, MVT::i32 },
+        {
+           SDValue(Load, 0),
+           OpOperand2
+        });
+
+    // Store
+    MachineSDNode *Store = CurDAG->getMachineNode(
+        NewStore, dl, MVT::Other,
+        {
+            Base, Scale, Index, Disp, Segment,
+            SDValue(Op, 0)
+        });
+    if(MemOpStore)
+      CurDAG->setNodeMemRefs(Store, { MemOpStore });
+
+    ReplaceUses(SDValue(N, 1), SDValue(Store, 0));
+
+    return true;
+  }
+  case X86::INC8m:
+  case X86::INC32m:
+  case X86::DEC32m:
+  case X86::INC64m:
+  case X86::DEC64m: {
+    /*
+     *   op [mem]
+     * ->
+     *   mov reg, [mem]
+     *   op reg
+     *   mov [mem], reg
+     */
+
+    dbgs() << "[OBELIX] Replacing " << TII->getName(Opc) << " in ISel\n";
+
+    // Extract operands
+    SDValue Base = N->getOperand(0);
+    SDValue Scale = N->getOperand(1);
+    SDValue Index = N->getOperand(2);
+    SDValue Disp = N->getOperand(3);
+    SDValue Segment = N->getOperand(4);
+
+    // Determine new op
+    unsigned int NewLoad;
+    unsigned int NewOp;
+    unsigned int NewStore;
+    MVT NewVT;
+    switch(Opc) {
+    case X86::INC8m: NewLoad = X86::MOV8rm; NewOp = X86::INC8r; NewStore = X86::MOV8mr; NewVT = MVT::i8; break;
+    case X86::INC32m: NewLoad = X86::MOV32rm; NewOp = X86::INC32r; NewStore = X86::MOV32mr; NewVT = MVT::i32; break;
+    case X86::DEC32m: NewLoad = X86::MOV32rm; NewOp = X86::DEC32r; NewStore = X86::MOV32mr; NewVT = MVT::i32; break;
+    case X86::INC64m: NewLoad = X86::MOV64rm; NewOp = X86::INC64r; NewStore = X86::MOV64mr; NewVT = MVT::i64; break;
+    case X86::DEC64m: NewLoad = X86::MOV64rm; NewOp = X86::DEC64r; NewStore = X86::MOV64mr; NewVT = MVT::i64; break;
+    default: llvm_unreachable("Unexpected opcode");
+    }
+
+    // Extract memory operands, if present
+    MachineMemOperand *MemOpLoad = nullptr;
+    MachineMemOperand *MemOpStore = nullptr;
+    if(N->memoperands().size() > 0) {
+      assert(N->memoperands().size() == 2 && "Unexpected number of memory operands");
+
+      MemOpStore = N->memoperands()[0];
+      assert(MemOpStore->isStore() && "First memory operand is not a store");
+
+      MemOpLoad = N->memoperands()[1];
+      assert(MemOpLoad->isLoad() && "Second memory operand is not a load");
+    }
+
+    SmallVector<SDValue,  8> LoadOps;
+    LoadOps.push_back(Base);
+    LoadOps.push_back(Scale);
+    LoadOps.push_back(Index);
+    LoadOps.push_back(Disp);
+    LoadOps.push_back(Segment);
+
+    // Append potential chain operands
+    for(size_t i = 5; i < N->getNumOperands(); ++i)
+      LoadOps.push_back(N->getOperand(i));
+
+    // Load
+    MachineSDNode *Load = CurDAG->getMachineNode(
+        NewLoad, dl, NewVT, LoadOps);
+    if(MemOpLoad)
+      CurDAG->setNodeMemRefs(Load, { MemOpLoad });
+
+    // Op
+    MachineSDNode *Op = CurDAG->getMachineNode(
+        NewOp, dl, { NewVT, MVT::i32 },
+        {
+            SDValue(Load, 0)
+        });
+
+    // Store
+    MachineSDNode *Store = CurDAG->getMachineNode(
+        NewStore, dl, MVT::Other,
+        {
+            Base, Scale, Index, Disp, Segment,
+            SDValue(Op, 0)
+        });
+    if(MemOpStore)
+      CurDAG->setNodeMemRefs(Store, { MemOpStore });
+
+    ReplaceUses(SDValue(N, 0), SDValue(Op, 1));
+    ReplaceUses(SDValue(N, 1), SDValue(Store, 0));
+
+    return true;
+  }
+  case X86::MOV16mi:
+  case X86::MOV32mi:
+  case X86::MOV64mi32: {
+    /*
+     *   mov [mem], imm
+     * ->
+     *   mov reg, imm
+     *   mov [mem], reg
+     */
+
+    dbgs() << "[OBELIX] Replacing " << TII->getName(Opc) << " in ISel\n";
+
+    // Extract operands
+    SDValue Base = N->getOperand(0);
+    SDValue Scale = N->getOperand(1);
+    SDValue Index = N->getOperand(2);
+    SDValue Disp = N->getOperand(3);
+    SDValue Segment = N->getOperand(4);
+    SDValue Imm = N->getOperand(5);
+
+    // Extract memory operand, if present
+    MachineMemOperand *MemOpStore = nullptr;
+    if(N->memoperands().size() > 0) {
+      assert(N->memoperands().size() == 1 && "Unexpected number of memory operands");
+
+      MemOpStore = N->memoperands()[0];
+      assert(MemOpStore->isStore() && "First memory operand is not a store");
+    }
+
+    // Get potential chain operands
+    SmallVector<SDValue, 4> MovOps;
+    MovOps.push_back(Imm);
+    for(size_t i = 6; i < N->getNumOperands(); ++i)
+      MovOps.push_back(N->getOperand(i));
+
+    unsigned int NewImmLoad;
+    unsigned int NewRegStore;
+    MVT ImmRegVT;
+    switch(Opc) {
+    case X86::MOV16mi: NewImmLoad = X86::MOV16ri; NewRegStore = X86::MOV16mr; ImmRegVT = MVT::i16; break;
+    case X86::MOV32mi: NewImmLoad = X86::MOV32ri; NewRegStore = X86::MOV32mr; ImmRegVT = MVT::i32; break;
+    case X86::MOV64mi32: NewImmLoad = X86::MOV32ri; NewRegStore = X86::MOV64mr; ImmRegVT = MVT::i32; break;
+    default: llvm_unreachable("Unexpected opcode");
+    }
+
+    // Load immediate
+    MachineSDNode *Mov = CurDAG->getMachineNode(
+        NewImmLoad, dl, { ImmRegVT, MVT::Other }, MovOps);
+
+    // Sign-extend immediate, if necessary
+    MachineSDNode *ImmExt = Mov;
+    if(Opc == X86::MOV64mi32) {
+      ImmExt = CurDAG->getMachineNode(
+          X86::MOVSX64rr32, dl, { MVT::i64, MVT::Other },
+          {
+            SDValue(Mov, 0),
+            SDValue(Mov, 1)
+          });
+    }
+
+    // Store
+    MachineSDNode *Store = CurDAG->getMachineNode(
+        NewRegStore, dl, MVT::Other,
+        {
+            Base, Scale, Index, Disp, Segment,
+            SDValue(ImmExt, 0),
+            SDValue(ImmExt, 1)
+        });
+    if(MemOpStore)
+      CurDAG->setNodeMemRefs(Store, { MemOpStore });
+
+    ReplaceUses(SDValue(N, 0), SDValue(Store, 0));
+
+    return true;
+  }
+  case X86::CALL64m: {
+    /*
+     *   call [mem]
+     * ->
+     *   mov reg, [mem]
+     *   call reg
+     */
+
+    dbgs() << "[OBELIX] Replacing " << TII->getName(Opc) << " in ISel\n";
+
+    // Extract memory operands
+    SDValue Base = N->getOperand(0);
+    SDValue Scale = N->getOperand(1);
+    SDValue Index = N->getOperand(2);
+    SDValue Disp = N->getOperand(3);
+    SDValue Segment = N->getOperand(4);
+
+    // Extract memory operand, if present
+    MachineMemOperand *MemOpLoad = nullptr;
+    if(N->memoperands().size() > 0) {
+      assert(N->memoperands().size() == 1 && "Unexpected number of memory operands");
+
+      MemOpLoad = N->memoperands()[0];
+      assert(MemOpLoad->isLoad() && "Memory operand is not a load");
+    }
+
+    SmallVector<SDValue, 8> LoadOps;
+    LoadOps.push_back(Base);
+    LoadOps.push_back(Scale);
+    LoadOps.push_back(Index);
+    LoadOps.push_back(Disp);
+    LoadOps.push_back(Segment);
+
+    // Extract chain operands
+    if(N->getOperand(N->getNumOperands() - 2).getValueType() == MVT::Other)
+      LoadOps.push_back(N->getOperand(N->getNumOperands() - 2));
+    if(N->getOperand(N->getNumOperands() - 1).getValueType() == MVT::Glue)
+      LoadOps.push_back(N->getOperand(N->getNumOperands() - 1));
+
+    // Load
+    MachineSDNode *Load = CurDAG->getMachineNode(
+        X86::MOV64rm, dl, { MVT::i64, MVT::Other, MVT::Glue }, LoadOps);
+    if(MemOpLoad)
+      CurDAG->setNodeMemRefs(Load, { MemOpLoad });
+
+    // Extract call arguments and reg mask
+    SmallVector<SDValue, 8> CallOps;
+    CallOps.push_back(SDValue(Load, 0));
+
+    assert(N->getOperand(N->getNumOperands() - 3).getValueType() == MVT::Untyped
+               && "Could not find operand assumed regmask");
+    for(int o = 5; o < N->getNumOperands(); ++o) {
+      SDValue CurOp = N->getOperand(o);
+      if(CurOp.getValueType() == MVT::Other || CurOp.getValueType() == MVT::Glue)
+        break;
+
+      CallOps.push_back(CurOp);
+    }
+
+    CallOps.push_back(SDValue(Load, 1));
+    CallOps.push_back(SDValue(Load, 2));
+
+    // Call
+    MachineSDNode *Call = CurDAG->getMachineNode(
+        X86::CALL64r, dl, N->getVTList(), CallOps);
+
+    ReplaceUses(N, Call);
+
+    return true;
+  }
+  }
+
+  return false;
+}
+
 void X86DAGToDAGISel::PostprocessISelDAG() {
   // Skip peepholes at -O0.
   if (TM.getOptLevel() == CodeGenOpt::None)
@@ -1484,9 +1898,23 @@ void X86DAGToDAGISel::PostprocessISelDAG() {
 
   SelectionDAG::allnodes_iterator Position = CurDAG->allnodes_end();
 
+  bool IsObelixCopy = false;
+  if(MF->getFunction().hasFnAttribute(Attribute::Obelix)) {
+    const Attribute &FOAttr = MF->getFunction().getFnAttribute(Attribute::Obelix);
+    const ObelixProperties &OP = FOAttr.getObelixProperties();
+    IsObelixCopy = OP.getState() == ObelixProperties::Copy
+        || OP.getState() == ObelixProperties::AutoCopy;
+  }
+
   bool MadeChange = false;
   while (Position != CurDAG->allnodes_begin()) {
     SDNode *N = &*--Position;
+
+    if(IsObelixCopy && N->isMachineOpcode() && tryHandleObelixCases(cast<MachineSDNode>(N))) {
+      MadeChange = true;
+      continue;
+    }
+
     // Skip dead nodes and any non-machine opcodes.
     if (N->use_empty() || !N->isMachineOpcode())
       continue;
@@ -3300,6 +3728,17 @@ bool X86DAGToDAGISel::foldLoadStoreIntoMemOperand(SDNode *Node) {
   case X86ISD::XOR:
     IsCommutable = true;
     break;
+  }
+
+  bool IsObelixCopy = false;
+  if(MF->getFunction().hasFnAttribute(Attribute::Obelix)) {
+    const Attribute &FOAttr = MF->getFunction().getFnAttribute(Attribute::Obelix);
+    IsObelixCopy = FOAttr.getObelixProperties().getState() == ObelixProperties::Copy
+        || FOAttr.getObelixProperties().getState() == ObelixProperties::AutoCopy;
+  }
+  if(IsObelixCopy) {
+    dbgs() << "[OBELIX] Suppressing folding of opcode `" << Opc << "` in X86DAGToDAGISel::foldLoadStoreIntoMemOperand\n";
+    return false;
   }
 
   unsigned LoadOpNo = IsNegate ? 1 : 0;

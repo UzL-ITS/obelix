@@ -462,6 +462,9 @@ public:
   /// function to the current output stream.
   virtual void emitJumpTableInfo();
 
+  /// Emits the code block table for the Obelix code ORAM.
+  virtual void emitObelixCodeBlockTable();
+
   /// Emit the specified global variable to the .s file.
   virtual void emitGlobalVariable(const GlobalVariable *GV);
 

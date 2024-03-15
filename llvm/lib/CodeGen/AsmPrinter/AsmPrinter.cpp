@@ -108,6 +108,8 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Support/ObelixCommandLineFlags.h"
+#include "llvm/Support/ObelixProperties.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
@@ -1597,6 +1599,16 @@ static bool needFuncLabels(const MachineFunction &MF) {
 /// EmitFunctionBody - This method emits the body and trailer for a
 /// function.
 void AsmPrinter::emitFunctionBody() {
+
+  // Is the function marked as needing ORAM instrumentation?
+  bool IsObelixCopy = false;
+  if(MF->getFunction().hasFnAttribute(Attribute::Obelix)) {
+    const Attribute &FOAttr = MF->getFunction().getFnAttribute(Attribute::Obelix);
+    IsObelixCopy = FOAttr.getObelixProperties().getState() == ObelixProperties::Copy
+        || FOAttr.getObelixProperties().getState() == ObelixProperties::AutoCopy;
+  }
+  bool ObelixPadInstructions = ObelixFeatureLevel >= ObelixFeatureLevels::UniformBlocks;
+
   emitFunctionHeader();
 
   // Emit target-specific gunk before the function body.
@@ -1627,6 +1639,7 @@ void AsmPrinter::emitFunctionBody() {
 
   bool CanDoExtraAnalysis = ORE->allowExtraAnalysis(DEBUG_TYPE);
   for (auto &MBB : *MF) {
+
     // Print a label for the basic block.
     emitBasicBlockStart(MBB);
     DenseMap<StringRef, unsigned> MnemonicCounts;
@@ -1733,6 +1746,18 @@ void AsmPrinter::emitFunctionBody() {
           I.first->second++;
         }
         break;
+      }
+
+      // Emit NOPs to pad instructions to a multiple of 8 if we have an Obelix-
+      // protected basic block
+      if(ObelixPadInstructions) {
+        if(IsObelixCopy && MBB.IsObelixOramBlock
+            && !MI.getObelixFlag(MachineInstr::DoNotPad)) {
+
+          // Align to 8 bytes
+          // Any instruction that Obelix emits is <= 8 bytes
+          emitAlignment(Align(8));
+        }
       }
 
       // If there is a post-instruction symbol, emit a label for it here.
@@ -1892,6 +1917,11 @@ void AsmPrinter::emitFunctionBody() {
   // Print out jump tables referenced by the function.
   emitJumpTableInfo();
 
+  // Emit ORAM code block table, if present
+  if(IsObelixCopy) {
+    emitObelixCodeBlockTable();
+  }
+
   // Emit post-function debug and/or EH information.
   for (const HandlerInfo &HI : Handlers) {
     NamedRegionTimer T(HI.TimerName, HI.TimerDescription, HI.TimerGroupName,
@@ -1936,6 +1966,146 @@ void AsmPrinter::emitFunctionBody() {
           << MBFI.getBlockFreqRelativeToEntryBlock(&MBB) << "\n";
     }
   }
+}
+
+void AsmPrinter::emitObelixCodeBlockTable() {
+
+  assert(TM.getTargetTriple().isX86() && "Unsupported target architecture");
+
+  const Function &F = MF->getFunction();
+
+  // Emit to read-only section where also jump tables reside
+  const TargetLoweringObjectFile &TLOF = getObjFileLowering();
+  MCSection *ReadOnlySection = TLOF.getSectionForJumpTable(F, TM);
+  OutStreamer->switchSection(ReadOnlySection);
+
+  // Structure:
+  // 1. Function info: List of pointers to code block tables of all called functions
+  //    Entry format:
+  //      - 32-bit offset to code block table
+  //      - 32-bit offset to original function
+  // 2. Code block table:
+  //    - Number of MBBs of this function
+  //    - List of pointers to MBBs of this function
+  // All arrays are terminated by a 0 element. All entries are relative to their own
+  // address.
+
+  // Generate symbol for the function info base
+  MCSymbol *FunctionInfoBaseSymbol = OutContext.getOrCreateSymbol(
+      F.getObelixOramFunctionInfoSymbolName()
+  );
+  const MCExpr *FunctionInfoBaseExpr = MCSymbolRefExpr::create(FunctionInfoBaseSymbol, OutContext);
+
+  // Generate symbol for the code block table base
+  MCSymbol *CodeBlockTableBaseSymbol = OutContext.getOrCreateSymbol(
+      F.getObelixOramCodeBlockTableSymbolName()
+  );
+  const MCExpr *CodeBlockTableBaseExpr = MCSymbolRefExpr::create(CodeBlockTableBaseSymbol, OutContext);
+
+  // Collect all functions called by this one
+  // We use a vector instead of a set to ensure some ordering. This function
+  // must always be at the beginning, as the first entry is used to determine
+  // the entrypoint. We assume that the list doesn't get very big anyway, so the
+  // linear time needed for searching it is tolerable (i.e., a set doesn't
+  // provide much performance improvement).
+  std::vector<const Function *> CalledFunctions;
+  std::vector<const Function *> CalledFunctionScannerQueue;
+  CalledFunctions.push_back(&F);
+  CalledFunctionScannerQueue.push_back(&F);
+
+  while(!CalledFunctionScannerQueue.empty()) {
+
+    // Loop over all functions called by the current one
+    const Function *CurF = CalledFunctionScannerQueue.front();
+    CalledFunctionScannerQueue.pop_back();
+
+    for(const Function *ChildF : CurF->ObelixCalledFunctions) {
+      if(std::find(CalledFunctions.begin(), CalledFunctions.end(), ChildF) == CalledFunctions.end()) {
+        CalledFunctions.push_back(ChildF);
+        CalledFunctionScannerQueue.push_back(ChildF);
+      }
+    }
+  }
+
+  // Align first info entry
+  emitAlignment(Align(8));
+
+  OutStreamer->emitLabel(FunctionInfoBaseSymbol);
+
+  // Emit symbols of called functions
+  unsigned FunctionInfoEntrySize = 8;
+  unsigned FunctionInfoOffset = 0;
+  for(const Function *CalledF : CalledFunctions) {
+
+    // We compute the offset of the code block table pointer relative to its
+    // position. This way, we can efficiently calculate the actual address at
+    // runtime without having to deal with relocations.
+    const MCExpr *InfoEntryExpr = MCBinaryExpr::createAdd(
+        FunctionInfoBaseExpr,
+        MCConstantExpr::create(FunctionInfoOffset, OutContext),
+        OutContext
+    );
+
+    // Get symbol of the function's code block table
+    MCSymbol *CalledCBSymbol = OutContext.getOrCreateSymbol(
+        CalledF->getObelixOramCodeBlockTableSymbolName()
+    );
+    const MCExpr *Value1 = MCSymbolRefExpr::create(CalledCBSymbol, OutContext);
+    Value1 = MCBinaryExpr::createSub(Value1, InfoEntryExpr, OutContext);
+
+    OutStreamer->emitValue(Value1, 4);
+
+    // Get symbol of original function
+    SmallString<64> OriginalFunctionName;
+    getNameWithPrefix(OriginalFunctionName, CalledF->ObelixOriginal);
+    MCSymbol *OriginalFunctionSymbol = getSymbolPreferLocal(*CalledF->ObelixOriginal);
+    const MCExpr *Value2 = MCSymbolRefExpr::create(OriginalFunctionSymbol, OutContext);
+    Value2 = MCBinaryExpr::createSub(Value2, InfoEntryExpr, OutContext);
+
+
+    OutStreamer->emitValue(Value2, 4);
+
+    FunctionInfoOffset += FunctionInfoEntrySize;
+  }
+
+  // Emit end marker
+  OutStreamer->emitValue(MCConstantExpr::create(0, OutContext), FunctionInfoEntrySize);
+
+  // Align first table entry
+  emitAlignment(Align(8));
+
+  OutStreamer->emitLabel(CodeBlockTableBaseSymbol);
+
+  // Emit MBB count
+  OutStreamer->emitValue(MCConstantExpr::create(MF->ObelixCodeBlocks.size(), OutContext), 4);
+
+  // Emit table entries
+  unsigned TableEntrySize = 4;
+  unsigned TableOffset = 4; // 4 bytes MBB count
+  for(auto *MBB : MF->ObelixCodeBlocks) {
+
+    // We compute the offset of the MBB relative to its table entry. This way,
+    // we save a register when iterating the code blocks in the ORAM.
+    const MCExpr *TableEntryExpr = MCBinaryExpr::createAdd(
+        CodeBlockTableBaseExpr,
+        MCConstantExpr::create(TableOffset, OutContext),
+        OutContext
+    );
+
+    // Table entry symbol
+    const MCExpr *Value = MCSymbolRefExpr::create(MBB->getSymbol(), OutContext);
+    Value = MCBinaryExpr::createSub(Value, TableEntryExpr, OutContext);
+
+    OutStreamer->emitValue(Value, TableEntrySize);
+
+    TableOffset += TableEntrySize;
+  }
+
+  // Emit end marker
+  OutStreamer->emitValue(MCConstantExpr::create(0, OutContext), TableEntrySize);
+
+  // Switch back to original section
+  OutStreamer->switchSection(MF->getSection());
 }
 
 /// Compute the number of Global Variables that uses a Constant.

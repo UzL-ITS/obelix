@@ -33,6 +33,7 @@
 #include "llvm/MC/MCInstrItineraries.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/ObelixProperties.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
@@ -568,6 +569,18 @@ MachineInstr *TargetInstrInfo::foldMemoryOperand(MachineInstr &MI,
   assert(MBB && "foldMemoryOperand needs an inserted instruction");
   MachineFunction &MF = *MBB->getParent();
 
+  bool IsObelixCopy = false;
+  if(MF.getFunction().hasFnAttribute(Attribute::Obelix)) {
+    const Attribute &FOAttr = MF.getFunction().getFnAttribute(Attribute::Obelix);
+    IsObelixCopy = FOAttr.getObelixProperties().getState() == ObelixProperties::Copy
+        || FOAttr.getObelixProperties().getState() == ObelixProperties::AutoCopy;
+  }
+  if(IsObelixCopy && !allowFoldInObelixMode(MI)) {
+    dbgs() << "[OBELIX] Suppressing folding of `" << getName(MI.getOpcode()) << "` in TargetInstrInfo::foldMemoryOperand (line " << __LINE__ << ")\n";
+    //MI.dump();
+    return nullptr;
+  }
+
   // If we're not folding a load into a subreg, the size of the load is the
   // size of the spill slot. But if we are, we need to figure out what the
   // actual load size is.
@@ -660,6 +673,18 @@ MachineInstr *TargetInstrInfo::foldMemoryOperand(MachineInstr &MI,
 
   MachineBasicBlock &MBB = *MI.getParent();
   MachineFunction &MF = *MBB.getParent();
+
+  bool IsObelixCopy = false;
+  if(MF.getFunction().hasFnAttribute(Attribute::Obelix)) {
+    const Attribute &FOAttr = MF.getFunction().getFnAttribute(Attribute::Obelix);
+    IsObelixCopy = FOAttr.getObelixProperties().getState() == ObelixProperties::Copy
+        || FOAttr.getObelixProperties().getState() == ObelixProperties::AutoCopy;
+  }
+  if(IsObelixCopy && !allowFoldInObelixMode(MI)) {
+    dbgs() << "[OBELIX] Suppressing folding of `" << getName(LoadMI.getOpcode()) << "` + `" << getName(MI.getOpcode()) << "` in TargetInstrInfo::foldMemoryOperand (line " << __LINE__ << ")\n";
+    //MI.dump();
+    return nullptr;
+  }
 
   // Ask the target to do the actual folding.
   MachineInstr *NewMI = nullptr;

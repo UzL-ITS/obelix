@@ -466,6 +466,10 @@ public:
   /// instruction that defines the specified register class.
   bool isSafeToMoveRegClassDefs(const TargetRegisterClass *RC) const override;
 
+  /// Return true if the instruction can be safely folded with a memory access
+  /// in Obelix context.
+  bool allowFoldInObelixMode(const MachineInstr &MI) const override;
+
   /// True if MI has a condition code def, e.g. EFLAGS, that is
   /// not marked dead.
   bool hasLiveCondCodeDef(MachineInstr &MI) const;

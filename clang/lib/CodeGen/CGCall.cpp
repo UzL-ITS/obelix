@@ -38,6 +38,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Type.h"
+#include "llvm/Support/ObelixProperties.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include <optional>
 using namespace clang;
@@ -2291,6 +2292,29 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
       FuncAttrs.addAttribute(llvm::Attribute::NoDuplicate);
     if (TargetDecl->hasAttr<ConvergentAttr>())
       FuncAttrs.addAttribute(llvm::Attribute::Convergent);
+
+    if(TargetDecl->hasAttr<ObelixAttr>())
+    {
+      llvm::ObelixProperties::State ObelixState = llvm::ObelixProperties::Marked;
+      switch(TargetDecl->getAttr<ObelixAttr>()->getState()) {
+      case ObelixAttr::Marked:
+        ObelixState = llvm::ObelixProperties::Marked;
+        break;
+      case ObelixAttr::Original:
+        ObelixState = llvm::ObelixProperties::Original;
+        break;
+      case ObelixAttr::Copy:
+        ObelixState = llvm::ObelixProperties::Copy;
+        break;
+      case ObelixAttr::Extern:
+        ObelixState = llvm::ObelixProperties::Extern;
+        break;
+      case ObelixAttr::AutoCopy:
+        ObelixState = llvm::ObelixProperties::AutoCopy;
+        break;
+      }
+      FuncAttrs.addObelixAttr(llvm::ObelixProperties(ObelixState));
+    }
 
     if (const FunctionDecl *Fn = dyn_cast<FunctionDecl>(TargetDecl)) {
       AddAttributesFromFunctionProtoType(

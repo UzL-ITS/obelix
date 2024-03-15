@@ -65,6 +65,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/ObelixProperties.h"
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/xxhash.h"
 #include "llvm/TargetParser/Triple.h"
@@ -2038,6 +2039,35 @@ void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
     B.addAttribute(llvm::Attribute::StackProtectStrong);
   else if (LangOpts.getStackProtector() == LangOptions::SSPReq)
     B.addAttribute(llvm::Attribute::StackProtectReq);
+
+  if(D && D->hasAttr<ObelixAttr>()) {
+
+    llvm::ObelixProperties::State ObelixState = llvm::ObelixProperties::Marked;
+    switch(D->getAttr<ObelixAttr>()->getState()) {
+    case ObelixAttr::Marked:
+      ObelixState = llvm::ObelixProperties::Marked;
+      break;
+    case ObelixAttr::Original:
+      ObelixState = llvm::ObelixProperties::Original;
+      break;
+    case ObelixAttr::Copy:
+      ObelixState = llvm::ObelixProperties::Copy;
+      break;
+    case ObelixAttr::Extern:
+      ObelixState = llvm::ObelixProperties::Extern;
+      break;
+    case ObelixAttr::AutoCopy:
+      ObelixState = llvm::ObelixProperties::AutoCopy;
+      break;
+    }
+    B.addObelixAttr(llvm::ObelixProperties(ObelixState));
+
+    // We disable inlining of protected functions
+    B.addAttribute(llvm::Attribute::NoInline);
+
+    // Hack for disabling auto-vectorization
+    B.addAttribute(llvm::Attribute::NoImplicitFloat);
+  }
 
   if (!D) {
     // If we don't have a declaration to control inlining, the function isn't

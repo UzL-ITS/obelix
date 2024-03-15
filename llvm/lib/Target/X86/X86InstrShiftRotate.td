@@ -18,36 +18,36 @@ let Constraints = "$src1 = $dst" in {
 let Uses = [CL], SchedRW = [WriteShiftCL] in {
 def SHL8rCL  : I<0xD2, MRM4r, (outs GR8 :$dst), (ins GR8 :$src1),
                  "shl{b}\t{%cl, $dst|$dst, cl}",
-                 [(set GR8:$dst, (shl GR8:$src1, CL))]>;
+                 [(set GR8:$dst, (shl GR8:$src1, CL))]>, ObIClass1;
 def SHL16rCL : I<0xD3, MRM4r, (outs GR16:$dst), (ins GR16:$src1),
                  "shl{w}\t{%cl, $dst|$dst, cl}",
-                 [(set GR16:$dst, (shl GR16:$src1, CL))]>, OpSize16;
+                 [(set GR16:$dst, (shl GR16:$src1, CL))]>, OpSize16, ObIClass1;
 def SHL32rCL : I<0xD3, MRM4r, (outs GR32:$dst), (ins GR32:$src1),
                  "shl{l}\t{%cl, $dst|$dst, cl}",
-                 [(set GR32:$dst, (shl GR32:$src1, CL))]>, OpSize32;
+                 [(set GR32:$dst, (shl GR32:$src1, CL))]>, OpSize32, ObIClass1;
 def SHL64rCL : RI<0xD3, MRM4r, (outs GR64:$dst), (ins GR64:$src1),
                   "shl{q}\t{%cl, $dst|$dst, cl}",
-                  [(set GR64:$dst, (shl GR64:$src1, CL))]>;
+                  [(set GR64:$dst, (shl GR64:$src1, CL))]>, ObIClass1;
 } // Uses = [CL], SchedRW
 
 let SchedRW = [WriteShift] in {
 let isConvertibleToThreeAddress = 1 in {   // Can transform into LEA.
 def SHL8ri   : Ii8<0xC0, MRM4r, (outs GR8 :$dst), (ins GR8 :$src1, u8imm:$src2),
                    "shl{b}\t{$src2, $dst|$dst, $src2}",
-                   [(set GR8:$dst, (shl GR8:$src1, (i8 imm:$src2)))]>;
+                   [(set GR8:$dst, (shl GR8:$src1, (i8 imm:$src2)))]>, ObIClass1;
 
 def SHL16ri  : Ii8<0xC1, MRM4r, (outs GR16:$dst), (ins GR16:$src1, u8imm:$src2),
                    "shl{w}\t{$src2, $dst|$dst, $src2}",
                    [(set GR16:$dst, (shl GR16:$src1, (i8 imm:$src2)))]>,
-                   OpSize16;
+                   OpSize16, ObIClass1;
 def SHL32ri  : Ii8<0xC1, MRM4r, (outs GR32:$dst), (ins GR32:$src1, u8imm:$src2),
                    "shl{l}\t{$src2, $dst|$dst, $src2}",
                    [(set GR32:$dst, (shl GR32:$src1, (i8 imm:$src2)))]>,
-                   OpSize32;
+                   OpSize32, ObIClass1;
 def SHL64ri  : RIi8<0xC1, MRM4r, (outs GR64:$dst),
                     (ins GR64:$src1, u8imm:$src2),
                     "shl{q}\t{$src2, $dst|$dst, $src2}",
-                    [(set GR64:$dst, (shl GR64:$src1, (i8 imm:$src2)))]>;
+                    [(set GR64:$dst, (shl GR64:$src1, (i8 imm:$src2)))]>, ObIClass1;
 } // isConvertibleToThreeAddress = 1
 
 // NOTE: We don't include patterns for shifts of a register by one, because
@@ -124,47 +124,47 @@ let Constraints = "$src1 = $dst" in {
 let Uses = [CL], SchedRW = [WriteShiftCL] in {
 def SHR8rCL  : I<0xD2, MRM5r, (outs GR8 :$dst), (ins GR8 :$src1),
                  "shr{b}\t{%cl, $dst|$dst, cl}",
-                 [(set GR8:$dst, (srl GR8:$src1, CL))]>;
+                 [(set GR8:$dst, (srl GR8:$src1, CL))]>, ObIClass1;
 def SHR16rCL : I<0xD3, MRM5r, (outs GR16:$dst), (ins GR16:$src1),
                  "shr{w}\t{%cl, $dst|$dst, cl}",
-                 [(set GR16:$dst, (srl GR16:$src1, CL))]>, OpSize16;
+                 [(set GR16:$dst, (srl GR16:$src1, CL))]>, OpSize16, ObIClass1;
 def SHR32rCL : I<0xD3, MRM5r, (outs GR32:$dst), (ins GR32:$src1),
                  "shr{l}\t{%cl, $dst|$dst, cl}",
-                 [(set GR32:$dst, (srl GR32:$src1, CL))]>, OpSize32;
+                 [(set GR32:$dst, (srl GR32:$src1, CL))]>, OpSize32, ObIClass1;
 def SHR64rCL : RI<0xD3, MRM5r, (outs GR64:$dst), (ins GR64:$src1),
                   "shr{q}\t{%cl, $dst|$dst, cl}",
-                  [(set GR64:$dst, (srl GR64:$src1, CL))]>;
+                  [(set GR64:$dst, (srl GR64:$src1, CL))]>, ObIClass1;
 } // Uses, SchedRW
 
 let SchedRW = [WriteShift] in {
 def SHR8ri   : Ii8<0xC0, MRM5r, (outs GR8:$dst), (ins GR8:$src1, u8imm:$src2),
                    "shr{b}\t{$src2, $dst|$dst, $src2}",
-                   [(set GR8:$dst, (srl GR8:$src1, (i8 imm:$src2)))]>;
+                   [(set GR8:$dst, (srl GR8:$src1, (i8 imm:$src2)))]>, ObIClass1;
 def SHR16ri  : Ii8<0xC1, MRM5r, (outs GR16:$dst), (ins GR16:$src1, u8imm:$src2),
                    "shr{w}\t{$src2, $dst|$dst, $src2}",
                    [(set GR16:$dst, (srl GR16:$src1, (i8 imm:$src2)))]>,
-                   OpSize16;
+                   OpSize16, ObIClass1;
 def SHR32ri  : Ii8<0xC1, MRM5r, (outs GR32:$dst), (ins GR32:$src1, u8imm:$src2),
                    "shr{l}\t{$src2, $dst|$dst, $src2}",
                    [(set GR32:$dst, (srl GR32:$src1, (i8 imm:$src2)))]>,
-                   OpSize32;
+                   OpSize32, ObIClass1;
 def SHR64ri : RIi8<0xC1, MRM5r, (outs GR64:$dst), (ins GR64:$src1, u8imm:$src2),
                   "shr{q}\t{$src2, $dst|$dst, $src2}",
-                  [(set GR64:$dst, (srl GR64:$src1, (i8 imm:$src2)))]>;
+                  [(set GR64:$dst, (srl GR64:$src1, (i8 imm:$src2)))]>, ObIClass1;
 
 // Shift right by 1
 def SHR8r1   : I<0xD0, MRM5r, (outs GR8:$dst), (ins GR8:$src1),
                  "shr{b}\t$dst",
-                 [(set GR8:$dst, (srl GR8:$src1, (i8 1)))]>;
+                 [(set GR8:$dst, (srl GR8:$src1, (i8 1)))]>, ObIClass1;
 def SHR16r1  : I<0xD1, MRM5r, (outs GR16:$dst), (ins GR16:$src1),
                  "shr{w}\t$dst",
-                 [(set GR16:$dst, (srl GR16:$src1, (i8 1)))]>, OpSize16;
+                 [(set GR16:$dst, (srl GR16:$src1, (i8 1)))]>, OpSize16, ObIClass1;
 def SHR32r1  : I<0xD1, MRM5r, (outs GR32:$dst), (ins GR32:$src1),
                  "shr{l}\t$dst",
-                 [(set GR32:$dst, (srl GR32:$src1, (i8 1)))]>, OpSize32;
+                 [(set GR32:$dst, (srl GR32:$src1, (i8 1)))]>, OpSize32, ObIClass1;
 def SHR64r1  : RI<0xD1, MRM5r, (outs GR64:$dst), (ins GR64:$src1),
                  "shr{q}\t$dst",
-                 [(set GR64:$dst, (srl GR64:$src1, (i8 1)))]>;
+                 [(set GR64:$dst, (srl GR64:$src1, (i8 1)))]>, ObIClass1;
 } // SchedRW
 } // Constraints = "$src = $dst"
 
@@ -226,50 +226,50 @@ let Constraints = "$src1 = $dst" in {
 let Uses = [CL], SchedRW = [WriteShiftCL] in {
 def SAR8rCL  : I<0xD2, MRM7r, (outs GR8 :$dst), (ins GR8 :$src1),
                  "sar{b}\t{%cl, $dst|$dst, cl}",
-                 [(set GR8:$dst, (sra GR8:$src1, CL))]>;
+                 [(set GR8:$dst, (sra GR8:$src1, CL))]>, ObIClass1;
 def SAR16rCL : I<0xD3, MRM7r, (outs GR16:$dst), (ins GR16:$src1),
                  "sar{w}\t{%cl, $dst|$dst, cl}",
                  [(set GR16:$dst, (sra GR16:$src1, CL))]>,
-                 OpSize16;
+                 OpSize16, ObIClass1;
 def SAR32rCL : I<0xD3, MRM7r, (outs GR32:$dst), (ins GR32:$src1),
                  "sar{l}\t{%cl, $dst|$dst, cl}",
                  [(set GR32:$dst, (sra GR32:$src1, CL))]>,
-                 OpSize32;
+                 OpSize32, ObIClass1;
 def SAR64rCL : RI<0xD3, MRM7r, (outs GR64:$dst), (ins GR64:$src1),
                  "sar{q}\t{%cl, $dst|$dst, cl}",
-                 [(set GR64:$dst, (sra GR64:$src1, CL))]>;
+                 [(set GR64:$dst, (sra GR64:$src1, CL))]>, ObIClass1;
 } // Uses, SchedRW
 
 let SchedRW = [WriteShift] in {
 def SAR8ri   : Ii8<0xC0, MRM7r, (outs GR8 :$dst), (ins GR8 :$src1, u8imm:$src2),
                    "sar{b}\t{$src2, $dst|$dst, $src2}",
-                   [(set GR8:$dst, (sra GR8:$src1, (i8 imm:$src2)))]>;
+                   [(set GR8:$dst, (sra GR8:$src1, (i8 imm:$src2)))]>, ObIClass1;
 def SAR16ri  : Ii8<0xC1, MRM7r, (outs GR16:$dst), (ins GR16:$src1, u8imm:$src2),
                    "sar{w}\t{$src2, $dst|$dst, $src2}",
                    [(set GR16:$dst, (sra GR16:$src1, (i8 imm:$src2)))]>,
-                   OpSize16;
+                   OpSize16, ObIClass1;
 def SAR32ri  : Ii8<0xC1, MRM7r, (outs GR32:$dst), (ins GR32:$src1, u8imm:$src2),
                    "sar{l}\t{$src2, $dst|$dst, $src2}",
                    [(set GR32:$dst, (sra GR32:$src1, (i8 imm:$src2)))]>,
-                   OpSize32;
+                   OpSize32, ObIClass1;
 def SAR64ri  : RIi8<0xC1, MRM7r, (outs GR64:$dst),
                     (ins GR64:$src1, u8imm:$src2),
                     "sar{q}\t{$src2, $dst|$dst, $src2}",
-                    [(set GR64:$dst, (sra GR64:$src1, (i8 imm:$src2)))]>;
+                    [(set GR64:$dst, (sra GR64:$src1, (i8 imm:$src2)))]>, ObIClass1;
 
 // Shift by 1
 def SAR8r1   : I<0xD0, MRM7r, (outs GR8 :$dst), (ins GR8 :$src1),
                  "sar{b}\t$dst",
-                 [(set GR8:$dst, (sra GR8:$src1, (i8 1)))]>;
+                 [(set GR8:$dst, (sra GR8:$src1, (i8 1)))]>, ObIClass1;
 def SAR16r1  : I<0xD1, MRM7r, (outs GR16:$dst), (ins GR16:$src1),
                  "sar{w}\t$dst",
-                 [(set GR16:$dst, (sra GR16:$src1, (i8 1)))]>, OpSize16;
+                 [(set GR16:$dst, (sra GR16:$src1, (i8 1)))]>, OpSize16, ObIClass1;
 def SAR32r1  : I<0xD1, MRM7r, (outs GR32:$dst), (ins GR32:$src1),
                  "sar{l}\t$dst",
-                 [(set GR32:$dst, (sra GR32:$src1, (i8 1)))]>, OpSize32;
+                 [(set GR32:$dst, (sra GR32:$src1, (i8 1)))]>, OpSize32, ObIClass1;
 def SAR64r1  : RI<0xD1, MRM7r, (outs GR64:$dst), (ins GR64:$src1),
                   "sar{q}\t$dst",
-                  [(set GR64:$dst, (sra GR64:$src1, (i8 1)))]>;
+                  [(set GR64:$dst, (sra GR64:$src1, (i8 1)))]>, ObIClass1;
 } // SchedRW
 } // Constraints = "$src = $dst"
 
@@ -467,13 +467,13 @@ def ROL8rCL  : I<0xD2, MRM0r, (outs GR8 :$dst), (ins GR8 :$src1),
                  [(set GR8:$dst, (rotl GR8:$src1, CL))]>;
 def ROL16rCL : I<0xD3, MRM0r, (outs GR16:$dst), (ins GR16:$src1),
                  "rol{w}\t{%cl, $dst|$dst, cl}",
-                 [(set GR16:$dst, (rotl GR16:$src1, CL))]>, OpSize16;
+                 [(set GR16:$dst, (rotl GR16:$src1, CL))]>, OpSize16, ObIClass1;
 def ROL32rCL : I<0xD3, MRM0r, (outs GR32:$dst), (ins GR32:$src1),
                  "rol{l}\t{%cl, $dst|$dst, cl}",
-                 [(set GR32:$dst, (rotl GR32:$src1, CL))]>, OpSize32;
+                 [(set GR32:$dst, (rotl GR32:$src1, CL))]>, OpSize32, ObIClass1;
 def ROL64rCL : RI<0xD3, MRM0r, (outs GR64:$dst), (ins GR64:$src1),
                   "rol{q}\t{%cl, $dst|$dst, cl}",
-                  [(set GR64:$dst, (rotl GR64:$src1, CL))]>;
+                  [(set GR64:$dst, (rotl GR64:$src1, CL))]>, ObIClass1;
 } // Uses, SchedRW
 
 let SchedRW = [WriteRotate] in {
@@ -487,11 +487,11 @@ def ROL16ri  : Ii8<0xC1, MRM0r, (outs GR16:$dst), (ins GR16:$src1, u8imm:$src2),
 def ROL32ri  : Ii8<0xC1, MRM0r, (outs GR32:$dst), (ins GR32:$src1, u8imm:$src2),
                    "rol{l}\t{$src2, $dst|$dst, $src2}",
                    [(set GR32:$dst, (rotl GR32:$src1, (i8 imm:$src2)))]>,
-                   OpSize32;
+                   OpSize32, ObIClass1;
 def ROL64ri  : RIi8<0xC1, MRM0r, (outs GR64:$dst),
                     (ins GR64:$src1, u8imm:$src2),
                     "rol{q}\t{$src2, $dst|$dst, $src2}",
-                    [(set GR64:$dst, (rotl GR64:$src1, (i8 imm:$src2)))]>;
+                    [(set GR64:$dst, (rotl GR64:$src1, (i8 imm:$src2)))]>, ObIClass1;
 
 // Rotate by 1
 def ROL8r1   : I<0xD0, MRM0r, (outs GR8 :$dst), (ins GR8 :$src1),
@@ -502,10 +502,10 @@ def ROL16r1  : I<0xD1, MRM0r, (outs GR16:$dst), (ins GR16:$src1),
                  [(set GR16:$dst, (rotl GR16:$src1, (i8 1)))]>, OpSize16;
 def ROL32r1  : I<0xD1, MRM0r, (outs GR32:$dst), (ins GR32:$src1),
                  "rol{l}\t$dst",
-                 [(set GR32:$dst, (rotl GR32:$src1, (i8 1)))]>, OpSize32;
+                 [(set GR32:$dst, (rotl GR32:$src1, (i8 1)))]>, OpSize32, ObIClass1;
 def ROL64r1  : RI<0xD1, MRM0r, (outs GR64:$dst), (ins GR64:$src1),
                   "rol{q}\t$dst",
-                  [(set GR64:$dst, (rotl GR64:$src1, (i8 1)))]>;
+                  [(set GR64:$dst, (rotl GR64:$src1, (i8 1)))]>, ObIClass1;
 } // SchedRW
 } // Constraints = "$src = $dst"
 
@@ -564,48 +564,48 @@ let Constraints = "$src1 = $dst" in {
 let Uses = [CL], SchedRW = [WriteRotateCL] in {
 def ROR8rCL  : I<0xD2, MRM1r, (outs GR8 :$dst), (ins GR8 :$src1),
                  "ror{b}\t{%cl, $dst|$dst, cl}",
-                 [(set GR8:$dst, (rotr GR8:$src1, CL))]>;
+                 [(set GR8:$dst, (rotr GR8:$src1, CL))]>, ObIClass1;
 def ROR16rCL : I<0xD3, MRM1r, (outs GR16:$dst), (ins GR16:$src1),
                  "ror{w}\t{%cl, $dst|$dst, cl}",
-                 [(set GR16:$dst, (rotr GR16:$src1, CL))]>, OpSize16;
+                 [(set GR16:$dst, (rotr GR16:$src1, CL))]>, OpSize16, ObIClass1;
 def ROR32rCL : I<0xD3, MRM1r, (outs GR32:$dst), (ins GR32:$src1),
                  "ror{l}\t{%cl, $dst|$dst, cl}",
-                 [(set GR32:$dst, (rotr GR32:$src1, CL))]>, OpSize32;
+                 [(set GR32:$dst, (rotr GR32:$src1, CL))]>, OpSize32, ObIClass1;
 def ROR64rCL : RI<0xD3, MRM1r, (outs GR64:$dst), (ins GR64:$src1),
                   "ror{q}\t{%cl, $dst|$dst, cl}",
-                  [(set GR64:$dst, (rotr GR64:$src1, CL))]>;
+                  [(set GR64:$dst, (rotr GR64:$src1, CL))]>, ObIClass1;
 }
 
 let SchedRW = [WriteRotate] in {
 def ROR8ri   : Ii8<0xC0, MRM1r, (outs GR8 :$dst), (ins GR8 :$src1, u8imm:$src2),
                    "ror{b}\t{$src2, $dst|$dst, $src2}",
-                   [(set GR8:$dst, (rotr GR8:$src1, (i8 imm:$src2)))]>;
+                   [(set GR8:$dst, (rotr GR8:$src1, (i8 imm:$src2)))]>, ObIClass1;
 def ROR16ri  : Ii8<0xC1, MRM1r, (outs GR16:$dst), (ins GR16:$src1, u8imm:$src2),
                    "ror{w}\t{$src2, $dst|$dst, $src2}",
                    [(set GR16:$dst, (rotr GR16:$src1, (i8 imm:$src2)))]>,
-                   OpSize16;
+                   OpSize16, ObIClass1;
 def ROR32ri  : Ii8<0xC1, MRM1r, (outs GR32:$dst), (ins GR32:$src1, u8imm:$src2),
                    "ror{l}\t{$src2, $dst|$dst, $src2}",
                    [(set GR32:$dst, (rotr GR32:$src1, (i8 imm:$src2)))]>,
-                   OpSize32;
+                   OpSize32, ObIClass1;
 def ROR64ri  : RIi8<0xC1, MRM1r, (outs GR64:$dst),
                     (ins GR64:$src1, u8imm:$src2),
                     "ror{q}\t{$src2, $dst|$dst, $src2}",
-                    [(set GR64:$dst, (rotr GR64:$src1, (i8 imm:$src2)))]>;
+                    [(set GR64:$dst, (rotr GR64:$src1, (i8 imm:$src2)))]>, ObIClass1;
 
 // Rotate by 1
 def ROR8r1   : I<0xD0, MRM1r, (outs GR8 :$dst), (ins GR8 :$src1),
                  "ror{b}\t$dst",
-                 [(set GR8:$dst, (rotr GR8:$src1, (i8 1)))]>;
+                 [(set GR8:$dst, (rotr GR8:$src1, (i8 1)))]>, ObIClass1;
 def ROR16r1  : I<0xD1, MRM1r, (outs GR16:$dst), (ins GR16:$src1),
                  "ror{w}\t$dst",
-                 [(set GR16:$dst, (rotr GR16:$src1, (i8 1)))]>, OpSize16;
+                 [(set GR16:$dst, (rotr GR16:$src1, (i8 1)))]>, OpSize16, ObIClass1;
 def ROR32r1  : I<0xD1, MRM1r, (outs GR32:$dst), (ins GR32:$src1),
                  "ror{l}\t$dst",
-                 [(set GR32:$dst, (rotr GR32:$src1, (i8 1)))]>, OpSize32;
+                 [(set GR32:$dst, (rotr GR32:$src1, (i8 1)))]>, OpSize32, ObIClass1;
 def ROR64r1  : RI<0xD1, MRM1r, (outs GR64:$dst), (ins GR64:$src1),
                   "ror{q}\t$dst",
-                  [(set GR64:$dst, (rotr GR64:$src1, (i8 1)))]>;
+                  [(set GR64:$dst, (rotr GR64:$src1, (i8 1)))]>, ObIClass1;
 } // SchedRW
 } // Constraints = "$src = $dst", SchedRW
 
@@ -721,28 +721,28 @@ def SHLD32rri8 : Ii8<0xA4, MRMDestReg,
                      "shld{l}\t{$src3, $src2, $dst|$dst, $src2, $src3}",
                      [(set GR32:$dst, (fshl GR32:$src1, GR32:$src2,
                                       (i8 imm:$src3)))]>,
-                 TB, OpSize32;
+                 TB, OpSize32, ObIClass1;
 def SHRD32rri8 : Ii8<0xAC, MRMDestReg,
                      (outs GR32:$dst),
                      (ins GR32:$src1, GR32:$src2, u8imm:$src3),
                      "shrd{l}\t{$src3, $src2, $dst|$dst, $src2, $src3}",
                      [(set GR32:$dst, (fshr GR32:$src2, GR32:$src1,
                                       (i8 imm:$src3)))]>,
-                 TB, OpSize32;
+                 TB, OpSize32, ObIClass1;
 def SHLD64rri8 : RIi8<0xA4, MRMDestReg,
                       (outs GR64:$dst),
                       (ins GR64:$src1, GR64:$src2, u8imm:$src3),
                       "shld{q}\t{$src3, $src2, $dst|$dst, $src2, $src3}",
                       [(set GR64:$dst, (fshl GR64:$src1, GR64:$src2,
                                        (i8 imm:$src3)))]>,
-                 TB;
+                 TB, ObIClass1;
 def SHRD64rri8 : RIi8<0xAC, MRMDestReg,
                       (outs GR64:$dst),
                       (ins GR64:$src1, GR64:$src2, u8imm:$src3),
                       "shrd{q}\t{$src3, $src2, $dst|$dst, $src2, $src3}",
                       [(set GR64:$dst, (fshr GR64:$src2, GR64:$src1,
                                        (i8 imm:$src3)))]>,
-                 TB;
+                 TB, ObIClass1;
 } // SchedRW
 } // Constraints = "$src = $dst"
 

@@ -123,6 +123,7 @@ MODULE_PASS("wholeprogramdevirt", WholeProgramDevirtPass())
 MODULE_PASS("dfsan", DataFlowSanitizerPass())
 MODULE_PASS("module-inline", ModuleInlinerPass())
 MODULE_PASS("tsan-module", ModuleThreadSanitizerPass())
+MODULE_PASS("obelix-callgraph", ObelixCallGraphTraversalPass())
 MODULE_PASS("sancov-module", SanitizerCoveragePass())
 MODULE_PASS("sanmd-module", SanitizerBinaryMetadataPass())
 MODULE_PASS("memprof-module", ModuleMemProfilerPass())
@@ -411,6 +412,8 @@ FUNCTION_PASS("transform-warning", WarnMissedTransformationsPass())
 FUNCTION_PASS("tsan", ThreadSanitizerPass())
 FUNCTION_PASS("memprof", MemProfilerPass())
 FUNCTION_PASS("declare-to-assign", llvm::AssignmentTrackingPass())
+FUNCTION_PASS("obelix-rewrite-calls", ObelixRewriteCallsPass())
+FUNCTION_PASS("obelix-generate-pattern", ObelixGeneratePatternPass())
 #undef FUNCTION_PASS
 
 #ifndef FUNCTION_PASS_WITH_PARAMS

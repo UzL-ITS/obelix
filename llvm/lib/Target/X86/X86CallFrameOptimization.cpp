@@ -42,6 +42,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Support/ObelixProperties.h"
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -552,6 +553,13 @@ void X86CallFrameOptimization::adjustCallSequence(MachineFunction &MF,
       // If PUSHrmm is not slow on this target, try to fold the source of the
       // push into the instruction.
       bool SlowPUSHrmm = STI->slowTwoMemOps();
+
+      if(MF.getFunction().hasFnAttribute(Attribute::Obelix)) {
+        const Attribute &FOAttr = MF.getFunction().getFnAttribute(Attribute::Obelix);
+        if (FOAttr.getObelixProperties().getState() == ObelixProperties::Copy
+            || FOAttr.getObelixProperties().getState() == ObelixProperties::AutoCopy)
+          SlowPUSHrmm = true;
+      }
 
       // Check that this is legal to fold. Right now, we're extremely
       // conservative about that.

@@ -1813,6 +1813,7 @@ def : Pat<(i64 (anyext (srl_su GR16:$src, (i8 8)))),
             sub_32bit)>;
 
 // h-register extract and store.
+/*
 def : Pat<(store (i8 (trunc_su (srl_su GR64:$src, (i8 8)))), addr:$dst),
           (MOV8mr_NOREX
             addr:$dst,
@@ -1827,6 +1828,7 @@ def : Pat<(store (i8 (trunc_su (srl_su GR16:$src, (i8 8)))), addr:$dst),
             addr:$dst,
             (EXTRACT_SUBREG GR16:$src, sub_8bit_hi))>,
       Requires<[In64BitMode]>;
+*/
 
 // Special pattern to catch the last step of __builtin_parity handling. Our
 // goal is to use an xor of an h-register with the corresponding l-register.

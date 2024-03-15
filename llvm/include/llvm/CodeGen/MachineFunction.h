@@ -498,6 +498,10 @@ private:
   friend struct ilist_traits<MachineInstr>;
 
 public:
+
+  // Code blocks accessed via the ORAM.
+  std::vector<MachineBasicBlock *> ObelixCodeBlocks;
+
   using VariableDbgInfoMapTy = SmallVector<VariableDbgInfo, 4>;
   VariableDbgInfoMapTy VariableDbgInfos;
 

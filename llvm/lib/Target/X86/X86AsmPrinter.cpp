@@ -43,6 +43,7 @@
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/ObelixProperties.h"
 #include "llvm/Target/TargetMachine.h"
 
 using namespace llvm;
@@ -61,6 +62,7 @@ bool X86AsmPrinter::runOnMachineFunction(MachineFunction &MF) {
   Subtarget = &MF.getSubtarget<X86Subtarget>();
 
   SMShadowTracker.startFunction(MF);
+  ObelixBBPadder.startFunction(MF);
   CodeEmitter.reset(TM.getTarget().createMCCodeEmitter(
       *Subtarget->getInstrInfo(), MF.getContext()));
 
@@ -71,6 +73,13 @@ bool X86AsmPrinter::runOnMachineFunction(MachineFunction &MF) {
       MF.getMMI().getModule()->getModuleFlag("indirect_branch_cs_prefix");
 
   SetupMachineFunction(MF);
+
+  // Is the function marked as needing ORAM instrumentation?
+  if(MF.getFunction().hasFnAttribute(Attribute::Obelix)) {
+    const Attribute &FOAttr = MF.getFunction().getFnAttribute(Attribute::Obelix);
+    IsObelixCopy = FOAttr.getObelixProperties().getState() == ObelixProperties::Copy
+        || FOAttr.getObelixProperties().getState() == ObelixProperties::AutoCopy;
+  }
 
   if (Subtarget->isTargetCOFF()) {
     bool Local = MF.getFunction().hasLocalLinkage();
@@ -437,6 +446,10 @@ static bool isIndirectBranchOrTailCall(const MachineInstr &MI) {
          Opc == X86::TAILJMPr64_REX || Opc == X86::TAILJMPm64_REX;
 }
 
+void X86AsmPrinter::emitBasicBlockStart(const llvm::MachineBasicBlock &MBB) {
+  AsmPrinter::emitBasicBlockStart(MBB);
+}
+
 void X86AsmPrinter::emitBasicBlockEnd(const MachineBasicBlock &MBB) {
   if (Subtarget->hardenSlsRet() || Subtarget->hardenSlsIJmp()) {
     auto I = MBB.getLastNonDebugInstr();
@@ -451,6 +464,9 @@ void X86AsmPrinter::emitBasicBlockEnd(const MachineBasicBlock &MBB) {
   }
   AsmPrinter::emitBasicBlockEnd(MBB);
   SMShadowTracker.emitShadowPadding(*OutStreamer, getSubtargetInfo());
+
+  if(IsObelixCopy)
+    ObelixBBPadder.emitPadding(*OutStreamer);
 }
 
 void X86AsmPrinter::PrintMemReference(const MachineInstr *MI, unsigned OpNo,

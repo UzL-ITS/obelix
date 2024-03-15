@@ -43,6 +43,7 @@ class FoldingSetNodeID;
 class Function;
 class LLVMContext;
 class MemoryEffects;
+class ObelixProperties;
 class Type;
 class raw_ostream;
 enum FPClassTest : unsigned;
@@ -149,6 +150,7 @@ public:
   static Attribute getWithInAllocaType(LLVMContext &Context, Type *Ty);
   static Attribute getWithUWTableKind(LLVMContext &Context, UWTableKind Kind);
   static Attribute getWithMemoryEffects(LLVMContext &Context, MemoryEffects ME);
+  static Attribute getWithObelixProperties(LLVMContext &Context, ObelixProperties OP);
   static Attribute getWithNoFPClass(LLVMContext &Context, FPClassTest Mask);
 
   /// For a typed attribute, return the equivalent attribute with the type
@@ -250,6 +252,9 @@ public:
 
   /// Returns memory effects.
   MemoryEffects getMemoryEffects() const;
+
+  /// Returns Obelix properties of the function.
+  ObelixProperties getObelixProperties() const;
 
   /// Return the FPClassTest for nofpclass
   FPClassTest getNoFPClass() const;
@@ -388,6 +393,7 @@ public:
   UWTableKind getUWTableKind() const;
   AllocFnKind getAllocKind() const;
   MemoryEffects getMemoryEffects() const;
+  std::optional<ObelixProperties> getObelixProperties() const;
   FPClassTest getNoFPClass() const;
   std::string getAsString(bool InAttrGrp = false) const;
 
@@ -897,6 +903,9 @@ public:
   /// Returns memory effects of the function.
   MemoryEffects getMemoryEffects() const;
 
+  /// Returns Obelix properties of the function.
+  std::optional<ObelixProperties> getObelixProperties() const;
+
   /// Return the attributes at the index as a string.
   std::string getAsString(unsigned Index, bool InAttrGrp = false) const;
 
@@ -1247,6 +1256,9 @@ public:
 
   /// Add memory effect attribute.
   AttrBuilder &addMemoryAttr(MemoryEffects ME);
+
+  /// Add Obelix properties attribute.
+  AttrBuilder &addObelixAttr(ObelixProperties OP);
 
   // Add nofpclass attribute
   AttrBuilder &addNoFPClassAttr(FPClassTest NoFPClassMask);

@@ -1071,6 +1071,9 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
       StaticRuntimes.push_back("memprof_cxx");
   }
 
+  if (SanArgs.needsObelixRt() && SanArgs.linkRuntimes())
+    StaticRuntimes.push_back("obelix");
+
   if (!SanArgs.needsSharedRt() && SanArgs.needsHwasanRt() && SanArgs.linkRuntimes()) {
     if (SanArgs.needsHwasanAliasesRt()) {
       StaticRuntimes.push_back("hwasan_aliases");

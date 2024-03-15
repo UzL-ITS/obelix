@@ -7563,6 +7563,15 @@ isSafeToMoveRegClassDefs(const TargetRegisterClass *RC) const {
            RC == &X86::RFP80RegClass);
 }
 
+bool X86InstrInfo::allowFoldInObelixMode(const MachineInstr &MI) const {
+  if(MI.isCopy())
+    return true;
+
+  uint64_t MIIClass = MI.getDesc().TSFlags & X86II::ObelixInstructionClassMask;
+  return MIIClass == X86II::ObelixIClassLoad
+         || MIIClass == X86II::ObelixIClassStore;
+}
+
 /// Return a virtual register initialized with the
 /// the global base register value. Output instructions required to
 /// initialize the register in the function entry block, if necessary.

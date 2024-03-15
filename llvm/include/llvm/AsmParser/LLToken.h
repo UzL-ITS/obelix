@@ -190,6 +190,13 @@ enum Kind {
   kw_argmem,
   kw_inaccessiblemem,
 
+  // Obelix attribute:
+  kw_marked,
+  kw_original,
+  kw_copy,
+  kw_extern,
+  kw_autocopy,
+
   // Legacy memory attributes:
   kw_argmemonly,
   kw_inaccessiblememonly,

@@ -259,6 +259,9 @@ PreservedAnalyses LoopIdiomRecognizePass::run(Loop &L, LoopAnalysisManager &AM,
   if (DisableLIRP::All)
     return PreservedAnalyses::all();
 
+  if(L.getHeader()->getParent()->hasFnAttribute(Attribute::AttrKind::Obelix))
+    return PreservedAnalyses::all();
+
   const auto *DL = &L.getHeader()->getModule()->getDataLayout();
 
   // For the new PM, we also can't use OptimizationRemarkEmitter as an analysis

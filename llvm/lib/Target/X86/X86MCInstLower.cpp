@@ -44,6 +44,7 @@
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/MCSymbolELF.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/ObelixCommandLineFlags.h"
 #include "llvm/Target/TargetLoweringObjectFile.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/Instrumentation/AddressSanitizer.h"
@@ -123,6 +124,11 @@ void X86AsmPrinter::StackMapShadowTracker::emitShadowPadding(
     emitX86Nops(OutStreamer, RequiredShadowSize - CurrentShadowSize,
                 &MF->getSubtarget<X86Subtarget>());
   }
+}
+
+void X86AsmPrinter::ObelixBasicBlockPadder::emitPadding(llvm::MCStreamer &OutStreamer) {
+  // Align to 128-byte boundary
+  OutStreamer.emitValueToAlignment(Align(0x80), 0xf4); // illegal `hlt` instruction
 }
 
 void X86AsmPrinter::EmitAndCountInstruction(MCInst &Inst) {
@@ -2689,4 +2695,25 @@ void X86AsmPrinter::emitInstruction(const MachineInstr *MI) {
   }
 
   EmitAndCountInstruction(TmpInst);
+
+#ifndef NDEBUG
+  // (Debug) Assert that protected instructions are max. 7 bytes long
+  if(IsObelixCopy && MI->getParent()->IsObelixOramBlock && ObelixFeatureLevel >= ObelixFeatureLevels::UniformBlocks) {
+
+    SmallString<16> TmpCode;
+    SmallVector<MCFixup, 4> TmpFixups;
+    CodeEmitter->encodeInstruction(TmpInst, TmpCode, TmpFixups, getSubtargetInfo());
+
+    size_t TmpInstSize = TmpCode.size();
+    if(TmpInstSize > 7) {
+      dbgs() << "Error: Protected instruction has " << TmpInstSize
+              << " bytes, maximum is 7\n";
+      MI->dump();
+      // TODO lea with 32-bit displacement has 8 bytes. We need to cleanly handle this case, e.g.,
+      //      add dummy prefixes to always pad lea to 8 bytes?
+      if(TmpInstSize > 8)
+        llvm_unreachable("Invalid instruction size");
+    }
+  }
+#endif
 }

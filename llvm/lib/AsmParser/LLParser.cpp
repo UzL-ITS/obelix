@@ -44,6 +44,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/ModRef.h"
+#include "llvm/Support/ObelixProperties.h"
 #include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
@@ -1469,6 +1470,13 @@ bool LLParser::parseEnumAttribute(Attribute::AttrKind Attr, AttrBuilder &B,
     B.addMemoryAttr(*ME);
     return false;
   }
+  case Attribute::Obelix: {
+    std::optional<ObelixProperties> OP = parseObelixAttr();
+    if(!OP)
+      return true;
+    B.addObelixAttr(*OP);
+    return false;
+  }
   case Attribute::NoFPClass: {
     if (FPClassTest NoFPClass =
             static_cast<FPClassTest>(parseNoFPClassAttr())) {
@@ -1560,6 +1568,7 @@ bool LLParser::parseFnAttributeValuePairs(AttrBuilder &B,
     if (Attr == Attribute::None) {
       if (!InAttrGrp)
         break;
+      dbgs() << "token = " << Token << "\n";
       return error(Lex.getLoc(), "unterminated attribute group");
     }
 
@@ -2294,6 +2303,23 @@ static std::optional<ModRefInfo> keywordToModRef(lltok::Kind Tok) {
   }
 }
 
+static std::optional<ObelixProperties::State> keywordToObelixState(lltok::Kind Tok) {
+  switch (Tok) {
+  case lltok::kw_marked:
+    return ObelixProperties::State::Marked;
+  case lltok::kw_original:
+    return ObelixProperties::State::Original;
+  case lltok::kw_copy:
+    return ObelixProperties::State::Copy;
+  case lltok::kw_extern:
+    return ObelixProperties::State::Extern;
+  case lltok::kw_autocopy:
+    return ObelixProperties::State::AutoCopy;
+  default:
+    return std::nullopt;
+  }
+}
+
 std::optional<MemoryEffects> LLParser::parseMemoryAttr() {
   MemoryEffects ME = MemoryEffects::none();
 
@@ -2347,6 +2373,28 @@ std::optional<MemoryEffects> LLParser::parseMemoryAttr() {
 
   tokError("unterminated memory attribute");
   return std::nullopt;
+}
+
+std::optional<ObelixProperties> LLParser::parseObelixAttr() {
+  Lex.Lex();
+  if (!EatIfPresent(lltok::lparen)) {
+    tokError("expected '('");
+    return std::nullopt;
+  }
+
+  std::optional<ObelixProperties::State> State = keywordToObelixState(Lex.getKind());
+  if (!State) {
+    tokError("expected Obelix state (marked, original, copy)");
+    return std::nullopt;
+  }
+
+  Lex.Lex();
+  if(!EatIfPresent(lltok::rparen)) {
+    tokError("expected ')'");
+    return std::nullopt;
+  }
+
+  return ObelixProperties(*State);
 }
 
 static unsigned keywordToFPClassTest(lltok::Kind Tok) {

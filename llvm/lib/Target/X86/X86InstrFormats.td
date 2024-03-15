@@ -190,6 +190,19 @@ def AdSize16 : AddressSize<1>; // Encodes a 16-bit address.
 def AdSize32 : AddressSize<2>; // Encodes a 32-bit address.
 def AdSize64 : AddressSize<3>; // Encodes a 64-bit address.
 
+// Obelix instruction classes for generating uniform code blocks.
+class ObelixIClass<bits<3> val> {
+  bits<3> Value = val;
+}
+def ObIClassNone      : ObelixIClass<0>; // Unclassified
+def ObIClassLoad      : ObelixIClass<1>; // Load
+def ObIClassStore     : ObelixIClass<2>; // Store
+def ObIClassPtrAdjust : ObelixIClass<3>; // Adjust RIP-relative pointer
+def ObIClass1         : ObelixIClass<4>; // Common arithmetic (add, and...)
+def ObIClass2         : ObelixIClass<5>; // Division (div, idiv)
+def ObIClass3         : ObelixIClass<6>; // Unused
+def ObIClass4         : ObelixIClass<7>; // Unused
+
 // Prefix byte classes which are used to indicate to the ad-hoc machine code
 // emitter that various prefix bytes are required.
 class OpSize16 { OperandSize OpSize = OpSize16; }
@@ -269,6 +282,16 @@ class NotEVEX2VEXConvertible { bit notEVEX2VEXConvertible = 1; }
 
 // Force the instruction to use VEX encoding.
 class ExplicitVEXPrefix { bit ExplicitVEXPrefix = 1; }
+
+// Set Obelix instruction class.
+class ObIClassNone      { ObelixIClass ObelixInstructionClass = ObIClassNone; }
+class ObIClassLoad      { ObelixIClass ObelixInstructionClass = ObIClassLoad; }
+class ObIClassStore     { ObelixIClass ObelixInstructionClass = ObIClassStore; }
+class ObIClassPtrAdjust { ObelixIClass ObelixInstructionClass = ObIClassPtrAdjust; }
+class ObIClass1         { ObelixIClass ObelixInstructionClass = ObIClass1; }
+class ObIClass2         { ObelixIClass ObelixInstructionClass = ObIClass2; }
+class ObIClass3         { ObelixIClass ObelixInstructionClass = ObIClass3; }
+class ObIClass4         { ObelixIClass ObelixInstructionClass = ObIClass4; }
 
 class X86Inst<bits<8> opcod, Format f, ImmType i, dag outs, dag ins,
               string AsmStr, Domain d = GenericDomain>
@@ -353,6 +376,10 @@ class X86Inst<bits<8> opcod, Format f, ImmType i, dag outs, dag ins,
   bit ExplicitVEXPrefix = 0; // Force the instruction to use VEX encoding.
   // Force to check predicate before compress EVEX to VEX encoding.
   bit checkVEXPredicate = 0;
+
+  ObelixIClass ObelixInstructionClass = ObIClassNone;
+  bits<3> ObelixInstructionClassBits = ObelixInstructionClass.Value;
+
   // TSFlags layout should be kept in sync with X86BaseInfo.h.
   let TSFlags{6-0}   = FormBits;
   let TSFlags{8-7}   = OpSizeBits;
@@ -378,6 +405,7 @@ class X86Inst<bits<8> opcod, Format f, ImmType i, dag outs, dag ins,
   let TSFlags{48}    = hasEVEX_RC;
   let TSFlags{49}    = hasNoTrackPrefix;
   let TSFlags{50}    = ExplicitVEXPrefix;
+  let TSFlags{53-51} = ObelixInstructionClassBits;
 }
 
 class PseudoI<dag oops, dag iops, list<dag> pattern>

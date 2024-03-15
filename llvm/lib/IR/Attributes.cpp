@@ -29,6 +29,7 @@
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ModRef.h"
+#include "llvm/Support/ObelixProperties.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
@@ -216,6 +217,11 @@ Attribute Attribute::getWithMemoryEffects(LLVMContext &Context,
   return get(Context, Memory, ME.toIntValue());
 }
 
+Attribute Attribute::getWithObelixProperties(LLVMContext &Context,
+                                             ObelixProperties OP) {
+  return get(Context, Obelix, OP.toIntValue());
+}
+
 Attribute Attribute::getWithNoFPClass(LLVMContext &Context,
                                       FPClassTest ClassMask) {
   return get(Context, NoFPClass, ClassMask);
@@ -401,6 +407,12 @@ MemoryEffects Attribute::getMemoryEffects() const {
   return MemoryEffects::createFromIntValue(pImpl->getValueAsInt());
 }
 
+ObelixProperties Attribute::getObelixProperties() const {
+  assert(hasAttribute(Attribute::Obelix) &&
+         "Can only call getObelixProperties() on obelix attribute");
+  return ObelixProperties::createFromIntValue(pImpl->getValueAsInt());
+}
+
 FPClassTest Attribute::getNoFPClass() const {
   assert(hasAttribute(Attribute::NoFPClass) &&
          "Can only call getNoFPClass() on nofpclass attribute");
@@ -549,6 +561,21 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
       }
       OS << getModRefStr(MR);
     }
+    OS << ")";
+    OS.flush();
+    return Result;
+  }
+
+  if (hasAttribute(Attribute::Obelix)) {
+    std::string Result;
+    raw_string_ostream OS(Result);
+
+    OS << "obelix(";
+
+    ObelixProperties OP = getObelixProperties();
+
+    OS << ObelixProperties::getStateString(OP.getState());
+
     OS << ")";
     OS.flush();
     return Result;
@@ -858,6 +885,10 @@ MemoryEffects AttributeSet::getMemoryEffects() const {
   return SetNode ? SetNode->getMemoryEffects() : MemoryEffects::unknown();
 }
 
+std::optional<ObelixProperties> AttributeSet::getObelixProperties() const {
+  return SetNode ? SetNode->getObelixProperties() : std::nullopt;
+}
+
 FPClassTest AttributeSet::getNoFPClass() const {
   return SetNode ? SetNode->getNoFPClass() : fcNone;
 }
@@ -1044,6 +1075,12 @@ MemoryEffects AttributeSetNode::getMemoryEffects() const {
   if (auto A = findEnumAttribute(Attribute::Memory))
     return A->getMemoryEffects();
   return MemoryEffects::unknown();
+}
+
+std::optional<ObelixProperties> AttributeSetNode::getObelixProperties() const {
+  if (auto A = findEnumAttribute(Attribute::Obelix))
+    return A->getObelixProperties();
+  return std::nullopt;
 }
 
 FPClassTest AttributeSetNode::getNoFPClass() const {
@@ -1608,6 +1645,10 @@ MemoryEffects AttributeList::getMemoryEffects() const {
   return getFnAttrs().getMemoryEffects();
 }
 
+std::optional<ObelixProperties> AttributeList::getObelixProperties() const {
+  return getFnAttrs().getObelixProperties();
+}
+
 std::string AttributeList::getAsString(unsigned Index, bool InAttrGrp) const {
   return getAttributes(Index).getAsString(InAttrGrp);
 }
@@ -1837,6 +1878,10 @@ AttrBuilder &AttrBuilder::addUWTableAttr(UWTableKind Kind) {
 
 AttrBuilder &AttrBuilder::addMemoryAttr(MemoryEffects ME) {
   return addRawIntAttr(Attribute::Memory, ME.toIntValue());
+}
+
+AttrBuilder &AttrBuilder::addObelixAttr(ObelixProperties OP) {
+  return addRawIntAttr(Attribute::Obelix, OP.toIntValue());
 }
 
 AttrBuilder &AttrBuilder::addNoFPClassAttr(FPClassTest Mask) {

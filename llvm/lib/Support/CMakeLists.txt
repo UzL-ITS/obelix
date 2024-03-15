@@ -192,6 +192,8 @@ add_llvm_component_library(LLVMSupport
   MSP430Attributes.cpp
   MSP430AttributeParser.cpp
   NativeFormatting.cpp
+  ObelixBuildFiles.cpp
+  ObelixCommandLineFlags.cpp
   OptimizedStructLayout.cpp
   Optional.cpp
   PGOOptions.cpp

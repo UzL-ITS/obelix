@@ -21,18 +21,18 @@ let Uses = [EFLAGS], Predicates = [HasCMOV], Constraints = "$src1 = $dst",
         "cmov${cond}{w}\t{$src2, $dst|$dst, $src2}",
         [(set GR16:$dst,
               (X86cmov GR16:$src1, GR16:$src2, timm:$cond, EFLAGS))]>,
-              TB, OpSize16;
+              TB, OpSize16, ObIClass1;
   def CMOV32rr
     : I<0x40, MRMSrcRegCC, (outs GR32:$dst), (ins GR32:$src1, GR32:$src2, ccode:$cond),
         "cmov${cond}{l}\t{$src2, $dst|$dst, $src2}",
         [(set GR32:$dst,
               (X86cmov GR32:$src1, GR32:$src2, timm:$cond, EFLAGS))]>,
-              TB, OpSize32;
+              TB, OpSize32, ObIClass1;
   def CMOV64rr
     :RI<0x40, MRMSrcRegCC, (outs GR64:$dst), (ins GR64:$src1, GR64:$src2, ccode:$cond),
         "cmov${cond}{q}\t{$src2, $dst|$dst, $src2}",
         [(set GR64:$dst,
-              (X86cmov GR64:$src1, GR64:$src2, timm:$cond, EFLAGS))]>, TB;
+              (X86cmov GR64:$src1, GR64:$src2, timm:$cond, EFLAGS))]>, TB, ObIClass1;
 }
 
 let Uses = [EFLAGS], Predicates = [HasCMOV], Constraints = "$src1 = $dst",
@@ -77,7 +77,7 @@ let Uses = [EFLAGS], isCodeGenOnly = 1, ForceDisassemble = 1 in {
   def SETCCr : I<0x90, MRMXrCC, (outs GR8:$dst), (ins ccode:$cond),
                 "set${cond}\t$dst",
                 [(set GR8:$dst, (X86setcc timm:$cond, EFLAGS))]>,
-                TB, Sched<[WriteSETCC]>;
+                TB, Sched<[WriteSETCC]>, ObIClass1;
   def SETCCm : I<0x90, MRMXmCC, (outs), (ins i8mem:$dst, ccode:$cond),
                 "set${cond}\t$dst",
                 [(store (X86setcc timm:$cond, EFLAGS), addr:$dst)]>,

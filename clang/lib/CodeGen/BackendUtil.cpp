@@ -72,6 +72,9 @@
 #include "llvm/Transforms/Instrumentation/SanitizerBinaryMetadata.h"
 #include "llvm/Transforms/Instrumentation/SanitizerCoverage.h"
 #include "llvm/Transforms/Instrumentation/ThreadSanitizer.h"
+#include "llvm/Transforms/Instrumentation/ObelixCallGraphTraversal.h"
+#include "llvm/Transforms/Instrumentation/ObelixRewriteCalls.h"
+#include "llvm/Transforms/Instrumentation/ObelixGeneratePattern.h"
 #include "llvm/Transforms/ObjCARC.h"
 #include "llvm/Transforms/Scalar/EarlyCSE.h"
 #include "llvm/Transforms/Scalar/GVN.h"
@@ -975,6 +978,16 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     if (!IsThinLTOPostLink) {
       addSanitizers(TargetTriple, CodeGenOpts, LangOpts, PB);
       addKCFIPass(TargetTriple, LangOpts, PB);
+    }
+
+    // Register Obelix sanitizer. Should run after most optimizations.
+    if (!IsLTO && LangOpts.Sanitize.has(SanitizerKind::Obelix)) {
+      PB.registerOptimizerLastEPCallback([&](ModulePassManager &MPM,
+                                             OptimizationLevel Level) {
+        MPM.addPass(ObelixCallGraphTraversalPass());
+        MPM.addPass(createModuleToFunctionPassAdaptor(ObelixRewriteCallsPass()));
+        MPM.addPass(createModuleToFunctionPassAdaptor(ObelixGeneratePatternPass()));
+      });
     }
 
     if (std::optional<GCOVOptions> Options =

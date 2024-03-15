@@ -588,6 +588,12 @@ public:
                                 const MachineInstr &MI1,
                                 const MachineRegisterInfo *MRI = nullptr) const;
 
+  /// Return true if the instruction can be safely folded with a memory access
+  /// in Obelix context.
+  virtual bool allowFoldInObelixMode(const MachineInstr &MI) const {
+    return true;
+  }
+
   /// \returns true if a branch from an instruction with opcode \p BranchOpc
   ///  bytes is capable of jumping to a position \p BrOffset bytes away.
   virtual bool isBranchOffsetInRange(unsigned BranchOpc,

@@ -652,6 +652,13 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(inaccessiblememonly);
   KEYWORD(inaccessiblemem_or_argmemonly);
 
+  // obelix attribute
+  KEYWORD(marked);
+  KEYWORD(original);
+  KEYWORD(copy);
+  KEYWORD(extern);
+  KEYWORD(autocopy);
+
   // nofpclass attribute
   KEYWORD(all);
   KEYWORD(nan);

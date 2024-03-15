@@ -102,6 +102,8 @@ public:
   bool needsStatsRt() const { return Stats; }
   bool needsScudoRt() const { return Sanitizers.has(SanitizerKind::Scudo); }
 
+  bool needsObelixRt() const { return Sanitizers.has(SanitizerKind::Obelix); }
+
   bool hasMemTag() const {
     return hasMemtagHeap() || hasMemtagStack() || hasMemtagGlobals();
   }

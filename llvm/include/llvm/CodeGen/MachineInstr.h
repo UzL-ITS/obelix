@@ -114,6 +114,23 @@ public:
                                         // this instruction.
   };
 
+  enum ObelixFlag {
+    // Instruction was generated and/or belongs to composite class, thus should
+    // be ignored during pattern processing.
+    DoNotProcess = 0x1,
+
+    // Instructions at the block end that jump to code ORAM controller, and must
+    // succeed all payload/dummy instructions (i.e., they are not part of the
+    // configurable pattern).
+    ControllerJump = 0x2,
+
+    // Do not put NOP alignment behind this instruction.
+    DoNotPad = 0x4,
+
+    // Instruction belongs to a pointer adjust group.
+    PtrAdjust = 0x8
+  };
+
 private:
   const MCInstrDesc *MCID;              // Instruction descriptor.
   MachineBasicBlock *Parent = nullptr;  // Pointer to the owning basic block.
@@ -132,6 +149,8 @@ private:
                                         // information.  Do not use this for
                                         // anything other than to convey comment
                                         // information to AsmPrinter.
+
+  uint8_t ObelixFlags = 0;
 
   // OperandCapacity has uint8_t size, so it should be next to AsmPrinterFlags
   // to properly pack.
@@ -372,6 +391,30 @@ public:
   /// clearFlag - Clear a MI flag.
   void clearFlag(MIFlag Flag) {
     Flags &= ~((uint16_t)Flag);
+  }
+
+  /// Return the Obelix flags bitvector.
+  uint8_t getObelixFlags() const {
+    return ObelixFlags;
+  }
+
+  /// Return whether an Obelix flag is set.
+  bool getObelixFlag(ObelixFlag Flag) const {
+    return ObelixFlags & Flag;
+  }
+
+  /// Set an Obelix flag.
+  void setObelixFlag(ObelixFlag Flag) {
+    ObelixFlags |= (uint8_t)Flag;
+  }
+
+  void setObelixFlags(unsigned flags) {
+    ObelixFlags = flags;
+  }
+
+  /// clearFlag - Clear an Obelix flag.
+  void clearObelixFlag(ObelixFlag Flag) {
+    Flags &= ~((uint8_t)Flag);
   }
 
   /// Return true if MI is in a bundle (but not the first MI in a bundle).

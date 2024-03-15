@@ -18,6 +18,7 @@
 #define LLVM_IR_FUNCTION_H
 
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/ADT/ilist_node.h"
@@ -55,6 +56,7 @@ class Type;
 class User;
 class BranchProbabilityInfo;
 class BlockFrequencyInfo;
+class ObelixPatternCandidate;
 
 class LLVM_EXTERNAL_VISIBILITY Function : public GlobalObject,
                                           public ilist_node<Function> {
@@ -67,6 +69,23 @@ public:
 
   using arg_iterator = Argument *;
   using const_arg_iterator = const Argument *;
+
+  /// Obelix-instrumented functions directly called by this one.
+  SmallPtrSet<const Function *, 8> ObelixCalledFunctions;
+
+  /// Top-level cloned function that calls this one (or nullptr).
+  Function *ObelixParent = nullptr;
+
+  /// Original version of this function before Obelix instrumentation.
+  Function *ObelixOriginal = nullptr;
+
+  /// Code block pattern of the current function. Only valid for top-level
+  /// cloned (parent) functions.
+  ObelixPatternCandidate *CodeBlockPattern = nullptr;
+
+  /// Total stack size of the call tree. Only valid for top-level
+  /// cloned (parent) functions.
+  uint64_t ObelixStackSize = 0;
 
 private:
   // Important things that make up a function!
@@ -174,6 +193,12 @@ public:
   FunctionType *getFunctionType() const {
     return cast<FunctionType>(getValueType());
   }
+
+  /// Return the name for the associated Obelix ORAM function info symbol.
+  std::string getObelixOramFunctionInfoSymbolName() const;
+
+  /// Return the name for the associated Obelix ORAM code block table symbol.
+  std::string getObelixOramCodeBlockTableSymbolName() const;
 
   /// Returns the type of the ret val.
   Type *getReturnType() const { return getFunctionType()->getReturnType(); }

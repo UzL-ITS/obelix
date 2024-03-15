@@ -798,6 +798,9 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
          StagedAttrs.UnrollCount == 0))
       setUnrollState(LoopAttributes::Disable);
 
+  if(Header->getParent()->hasFnAttribute(Attribute::AttrKind::Obelix))
+    setUnrollState(LoopAttributes::Disable);
+
   /// Stage the attributes.
   push(Header, StartLoc, EndLoc);
 }
