@@ -64,7 +64,7 @@ Result:                                         <-- Protected result
 ## Paper
 For an extended description of the framework, please refer to our paper:
 
-Jan Wichelman, Anja Rabich, Anna Pätschke and Thomas Eisenbarth. 2024. **Obelix: Mitigating Side-Channels Through Dynamic Obfuscation.** In 2024 IEEE Symposium on Security and Privacy (S&P '24).
+Jan Wichelmann, Anja Rabich, Anna Pätschke and Thomas Eisenbarth. 2024. **Obelix: Mitigating Side-Channels Through Dynamic Obfuscation.** In 2024 IEEE Symposium on Security and Privacy (S&P '24). \[[Link](https://www.computer.org/csdl/proceedings-article/sp/2024/313000a189/1WPcYic94rK)\] \[[DOI](https://doi.ieeecomputersociety.org/10.1109/SP54263.2024.00182)\]
 
 ## License
 The project is based on LLVM and subject to the same [license](LICENSE.TXT).
